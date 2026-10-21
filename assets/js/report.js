@@ -17,34 +17,111 @@
   const titleCase = s => s.toLowerCase().split(/(\s+|\/|-)/).map((w, i) => (i > 0 && SMALL.has(w)) ? w : w.replace(/^([a-z])/, c => c.toUpperCase())).join("").replace(/'S\b/g, "'s");
   const isHeading = t => t.length <= 90 && /[A-Z]{2}/.test(t) && t === t.toUpperCase() && !/\s{3,}/.test(t) && !/^\(?\d/.test(t) && !/^N\.B\./.test(t) && (t.match(/[A-Z]/g) || []).length >= Math.max(3, t.replace(/[^A-Za-z]/g, "").length * 0.9);
   const isSub = t => /^(\d{1,2}|[a-z]|[ivx]{1,4})\)\s+\S/.test(t) && t.length < 100 && !/[.;,]$/.test(t);
-  const isTable = l => /\S\s{3,}\S/.test(l.trim()) || /^\s{6,}\S/.test(l) || /^\s*[-=_]{4,}\s*$/.test(l);
+  const isBulletLine = t => /^[*•▪-]\s+\S/.test(t) && !/\S\s{3,}\S/.test(t.replace(/^[*•▪-]\s+/, ""));
+  const isTable = l => !isBulletLine(l.trim()) && (/\S\s{3,}\S/.test(l.trim()) || /^\s{6,}\S/.test(l) || /^\s*[-=_]{4,}\s*$/.test(l));
   const NUMRX = /^\(?-?[£$€]?\s?[\d,]+(\.\d+)?\)?%?x?$|^n\/a$|^-$|^nil$/i;
+  // a unit or period line that belongs in a table header ("US$ ('000s)", "£ millions", "Y/E 31/12", "A$'000s")
+  const UNIT = /^(y[\/-]e\b|year end|years? ended|period\b|as at\b|half[- ]year|six months|nine months|ttm\b)|^(\(?(£|€|\$|us\$|a\$|c\$|nz\$|hk\$|s\$|[a-z]{3})?\s*'?\(?'?(000s?|'000s?|m|mn|bn|millions?|billions?|thousands?)'?\)?\)?|£|€|\$|us\$)$/i;
+  // a short line that can sit inside a table: a units line, a group label or the first half of a two-line label
+  const isCaption = t => t.length <= 50 && !/[.;]$/.test(t) && !isHeading(t) && !isSub(t) && !/^[*•▪]\s/.test(t) && !/^(N\.B\.|Note|Source)/i.test(t);
+  const isRuleLine = l => /^\s*[-=_]{3,}(\s+[-=_]{3,})*\s*$/.test(l);
+  const isNum = v => NUMRX.test(v.replace(/\s/g, ""));
+  const isYear = v => /^(19|20)\d\d[a-z]?$/i.test(v) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(v);
+  // cells of a fixed-width text line: runs of text separated by two or more spaces, with their character positions
+  const cellsOf = l => { const out = [], re = /\S+(?: \S+)*/g; let m; while ((m = re.exec(l))) out.push({ t: m[0], s: m.index, e: m.index + m[0].length }); return out; };
+  // a row that starts a new table rather than continuing one: column headings (years, dates or words, no figures)
+  const isHeadLine = l => { const c = cellsOf(l.replace(/\t/g, "    ")); const lead = /^\s{6,}\S/.test(l); const v = lead ? c : c.slice(1); return v.length > 0 && v.every(x => isYear(x.t) || !isNum(x.t)); };
+
   function tableHtml(lines) {
+    const body = lines.filter(l => l.trim());
     // offer terms: "for every X share    250 pence in cash"
-    if (lines.every(l => /^\s*(for|in exchange for)\s+(every|each)\b/i.test(l) && /\S\s{3,}\S/.test(l))) {
-      return '<div class="offterms">' + lines.map(l => { const p = l.trim().split(/\s{3,}/); return '<div class="tt"><span class="tt-l">' + esc(p[0].replace(/^./, c => c.toUpperCase())) + '</span><span class="tt-v">' + esc(p.slice(1).join(" ")) + "</span></div>"; }).join("") + "</div>";
+    if (body.every(l => /^\s*(for|in exchange for)\s+(every|each)\b/i.test(l) && /\S\s{3,}\S/.test(l))) {
+      return '<div class="offterms">' + body.map(l => { const p = l.trim().split(/\s{3,}/); return '<div class="tt"><span class="tt-l">' + esc(p[0].replace(/^./, c => c.toUpperCase())) + '</span><span class="tt-v">' + esc(p.slice(1).join(" ")) + "</span></div>"; }).join("") + "</div>";
     }
-    let rows = [], rule = false, ncol = 0;
-    lines.forEach(l => {
-      if (/^\s*[-=_]{4,}\s*$/.test(l)) { rule = true; return; }
-      const cells = l.trim().split(/\s{2,}/);
-      ncol = Math.max(ncol, cells.length);
-      rows.push({ cells, rule, lead: /^\s{6,}/.test(l) }); rule = false;
+    /* 1. rows, with the blank and ruled lines above each */
+    const rows = []; let gap = false, rule = false;
+    lines.forEach(l0 => {
+      const l = l0.replace(/\t/g, "    ").replace(/\s+$/, "");
+      if (!l.trim()) { if (rows.length) gap = true; return; }
+      if (isRuleLine(l)) { rule = true; return; }
+      const cells = cellsOf(l), lead = /^\s{6,}\S/.test(l);
+      rows.push({ cells, lead, gap, rule }); gap = false; rule = false;
     });
-    if (ncol < 2) return '<pre class="ntxt">' + esc(lines.join("\n")) + "</pre>";
-    let h = '<div class="ntab"><table><tbody>';
-    rows.forEach((r, i) => {
-      const c = r.cells;
-      if (c.length === 1) { h += '<tr class="grp"><td colspan="' + ncol + '">' + esc(c[0]) + "</td></tr>"; return; }
-      const vals = c.slice(1), allNum = vals.every(v => NUMRX.test(v.replace(/\s/g, "")));
-      const label = c[0], pad = ncol - c.length;
-      const isHead = i === 0 && (!allNum || /^(as at|y\/e|year|period|half|six months|ttm|\d{1,2}\/\d{1,2})/i.test(label) || vals.every(v => /^(19|20)\d\d[a-z]?$/i.test(v)));
-      if (isHead) { h += "<tr><th>" + esc(label) + "</th>" + "<th></th>".repeat(pad) + vals.map(v => '<th class="r">' + esc(v) + "</th>").join("") + "</tr>"; return; }
-      const tot = /^total\b/i.test(label), cls = [tot ? "tot" : "", r.rule && !tot ? "rule" : ""].filter(Boolean).join(" ");
-      h += "<tr" + (cls ? ' class="' + cls + '"' : "") + "><td>" + esc(label) + "</td>" + "<td></td>".repeat(pad) + vals.map(v => { const n = NUMRX.test(v.replace(/\s/g, "")); return "<td class=\"" + (n ? "num" + (/\)$/.test(v) ? "" : " ps") : "") + '">' + esc(v) + "</td>"; }).join("") + "</tr>";
-    });
-    return h + "</tbody></table></div>";
+    /* 2. value columns, found from where the figures end (they are right-aligned in the text) */
+    const valsOf = r => r.lead ? r.cells : (r.cells.length > 1 ? r.cells.slice(1) : []);
+    let ends = [];
+    rows.forEach(r => valsOf(r).forEach(c => { if (isNum(c.t) && !isYear(c.t)) ends.push(c); }));
+    if (!ends.length) rows.forEach(r => valsOf(r).forEach(c => ends.push(c)));
+    ends.sort((a, b) => a.e - b.e);
+    const cols = [];
+    ends.forEach(c => { const k = cols[cols.length - 1]; if (k && c.e - k.e <= 2) { k.e = Math.max(k.e, c.e); k.s = Math.min(k.s, c.s); k.n++; } else cols.push({ s: c.s, e: c.e, n: 1 }); });
+    // drop stray one-off positions when the table has clear columns
+    const strong = cols.filter(k => k.n >= 2);
+    const C = strong.length >= 1 && rows.length > 2 ? strong : cols;
+    if (!C.length) return '<pre class="ntxt">' + esc(body.join("\n")) + "</pre>";
+    const firstColStart = Math.min(...C.map(k => k.s));
+    const place = r => {
+      // a long label that runs into its first figure with a single space ("... entities 2,470")
+      if (!r.lead && r.cells.length) {
+        const c0 = r.cells[0], m = /^(.*\S) (\(?-?[\d,]+(\.\d+)?\)?)$/.exec(c0.t);
+        if (m && /[A-Za-z]/.test(m[1]) && Math.abs(c0.e - C[0].e) <= 2) r.cells.splice(0, 1, { t: m[1], s: c0.s, e: c0.s + m[1].length }, { t: m[2], s: c0.e - m[2].length, e: c0.e });
+      }
+      // text that starts before the first column belongs to the label, even if the text used wide spacing
+      let vals = valsOf(r), label = r.lead ? "" : r.cells[0].t;
+      if (!r.lead) while (vals.length && !isNum(vals[0].t) && vals[0].e < firstColStart - 1) { label += " " + vals[0].t; vals = vals.slice(1); }
+      if (!r.lead && r.cells.length === 1) vals = [];
+      const out = new Array(C.length).fill(null);
+      let ok = true, last = -1;
+      vals.forEach(c => {
+        let k = C.findIndex(x => Math.abs(x.e - c.e) <= 2);
+        if (k < 0) { let best = -1, bo = 0; C.forEach((x, i) => { const o = Math.min(x.e, c.e) - Math.max(x.s, c.s); if (o > bo) { bo = o; best = i; } }); k = best; }
+        if (k < 0) { let bd = 1e9; C.forEach((x, i) => { const d = Math.abs((x.s + x.e) / 2 - (c.s + c.e) / 2); if (d < bd) { bd = d; k = i; } }); }
+        if (k <= last || out[k] != null) ok = false;
+        else { out[k] = c.t; last = k; }
+      });
+      if (!ok) { out.fill(null); vals.slice(-C.length).forEach((c, i, a) => { out[C.length - a.length + i] = c.t; }); }
+      return { label, vals: out, n: vals.length };
+    };
+    /* 3. header rows (column headings, units and periods) come before the first row of figures */
+    const P = rows.map(r => Object.assign(r, place(r)));
+    const isData = r => r.vals.some(v => v != null && isNum(v) && !isYear(v));
+    let firstData = P.findIndex(isData); if (firstData < 0) firstData = P.length;
+    const head = [], data = P.slice(firstData), lead = [];
+    P.slice(0, firstData).forEach(r => { if (r.n === 0 && !UNIT.test(r.label)) lead.push(r); else head.push(r); });
+    data.unshift(...lead);
+    const ncol = C.length + 1;
+    const td = v => { if (v == null) return "<td></td>"; const n = isNum(v); return "<td" + (n ? ' class="num' + (/^(-|nil|n\/a)$/i.test(v.trim()) ? " z" : "") + (/\)$/.test(v) ? "" : " ps") + '"' : "") + ">" + esc(v) + "</td>"; };
+    let th = "", units = [];
+    const headRows = head.filter(r => r.n > 0);
+    head.forEach(r => { if (r.n === 0) units.push(r.label); });
+    if (headRows.length) {
+      headRows.forEach((r, i) => {
+        let lab = esc(r.label);
+        if (i === 0 && units.length) lab += lab ? ' <span class="u">' + esc(units.join(" · ")) + "</span>" : '<span class="u" style="margin-left:0">' + esc(units.join(" · ")) + "</span>";
+        th += "<tr><th>" + lab + "</th>" + r.vals.map(v => '<th class="r">' + (v == null ? "" : esc(v)) + "</th>").join("") + "</tr>";
+      });
+    } else if (units.length) {
+      th = '<tr><th colspan="' + ncol + '"><span class="u" style="margin-left:0">' + esc(units.join(" · ")) + "</span></th></tr>";
+    }
+    /* 4. figures: group labels, two-line labels joined, subtotals under a ruled line */
+    let tb = "", seen = 0, lastGrp = false;
+    for (let i = 0; i < data.length; i++) {
+      const r = data[i], nx = data[i + 1];
+      if (r.n === 0) {
+        // the first half of a label that carries on in lower case on the next line
+        if (nx && !nx.gap && !nx.rule && nx.n > 0 && /^[a-z(&]/.test(nx.label)) { nx.label = r.label + " " + nx.label; nx.gap = nx.gap || r.gap; nx.rule = nx.rule || r.rule; continue; }
+        if (r.gap && seen && !lastGrp) tb += '<tr class="gap"><td colspan="' + ncol + '"></td></tr>';
+        tb += '<tr class="grp"><td colspan="' + ncol + '">' + esc(r.label) + "</td></tr>"; lastGrp = true; continue;
+      }
+      if (r.gap && seen && !r.rule && !lastGrp) tb += '<tr class="gap"><td colspan="' + ncol + '"></td></tr>';
+      lastGrp = false;
+      const tot = r.rule || (seen > 0 && /^total\b/i.test(r.label) && (!nx || nx.gap || nx.rule || nx.n === 0));
+      tb += "<tr" + (tot ? ' class="tot"' : "") + "><td>" + esc(r.label) + "</td>" + r.vals.map(td).join("") + "</tr>";
+      seen++;
+    }
+    return '<div class="ntab"><table>' + (th ? "<thead>" + th + "</thead>" : "") + "<tbody>" + tb + "</tbody></table></div>";
   }
+  const isRuleOnly = (lines, k) => isRuleLine(lines[k]) && !(lines.slice(k + 1, k + 3).some(l => isTable(l) && !isRuleLine(l)));
   function narrative(text, prefix, skipFirstHeading) {
     const lines = String(text || "").replace(/\r/g, "").split("\n");
     const wrap = Math.max(80, ...lines.map(l => l.length).filter(n => n < 160));
@@ -64,15 +141,28 @@
         const tt = titleCase(t);
         out.push('<h4 class="' + (first ? "first" : "") + '" id="' + id + '">' + esc(tt) + "</h4>"); toc.push([id, tt]); first = false; continue;
       }
-      if (isTable(raw)) {
+      // a table, or a units line ("£ millions") just above one
+      const unitStart = UNIT.test(t) && (isTable(lines[i + 1] || "") || (!(lines[i + 1] || "").trim() && isTable(lines[i + 2] || "")));
+      if (isTable(raw) || unitStart) {
         closeList();
         const blk = [raw];
-        while (i + 1 < lines.length) {
-          const n = lines[i + 1], nt = n.trim();
-          if (!nt) break;
-          if (isTable(n)) { blk.push(n); i++; continue; }
-          // a short caption line (e.g. "£ million") sandwiched between table lines
-          if (nt.length < 45 && !/[.:]$/.test(nt) && i + 2 < lines.length && isTable(lines[i + 2]) && !isHeading(nt)) { blk.push(n); i++; continue; }
+        let j = i + 1;
+        while (j < lines.length) {
+          if (isTable(lines[j])) { blk.push(lines[j]); i = j++; continue; }
+          // blank lines and short caption lines (units, group labels, the first half of a two-line label) stay
+          // in the table when more of it follows; a new set of column headings after a gap starts a new table
+          let k = j, caps = 0, blanks = 0;
+          while (k < lines.length) {
+            const tk = lines[k].trim();
+            if (!tk) { if (++blanks > 2) break; k++; continue; }
+            if (isTable(lines[k])) break;
+            if (isCaption(tk) && ++caps <= 2) { k++; continue; }
+            break;
+          }
+          if (k < lines.length && k > j && isTable(lines[k]) && !(isHeadLine(lines[k]) && (blanks || caps)) && !isRuleOnly(lines, k)) {
+            for (; j < k; j++) blk.push(lines[j]);
+            continue;
+          }
           break;
         }
         out.push(tableHtml(blk)); first = false; continue;
