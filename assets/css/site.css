@@ -69,7 +69,7 @@ button.av:hover{box-shadow:0 0 0 3px rgba(79,110,247,.18)}
 .imp-log{font-size:12.5px;color:var(--t2)}
 
 /* dialog */
-dialog.mdl{border:0;border-radius:16px;padding:0;width:min(420px,calc(100vw - 32px));box-shadow:0 30px 80px rgba(15,23,41,.3)}
+dialog.mdl{margin:auto;border:0;border-radius:16px;padding:0;width:min(420px,calc(100vw - 32px));box-shadow:0 30px 80px rgba(15,23,41,.3)}
 dialog.mdl::backdrop{background:rgba(15,23,41,.35);backdrop-filter:blur(2px)}
 .mdl-b{display:grid;gap:14px;padding:24px 26px}
 .mdl-b h2{font-size:20px;font-weight:800;letter-spacing:-.03em;margin:0}
@@ -123,3 +123,17 @@ footer.site .base .pdb-h{font-size:11px}
 @media (max-width:640px){.gvbar{gap:10px}.gv-brand b,.gv-live{display:none}.gv-links a.gv-open{padding:5px 8px;font-size:11.5px}}
 @media (prefers-reduced-motion:reduce){.gv-track.go{animation:none}.gv-tick{overflow-x:auto;scrollbar-width:none}.gv-track .gv-run+.gv-run{display:none}.gv-live i{animation:none}}
 @media print{.gvbar{display:none}}
+
+/* Search results: Excel download form (step 3) */
+dialog.mdl.wide{width:min(900px,calc(100vw - 32px))}
+.dl-hd{display:grid;gap:10px;justify-items:start}
+.dl-groups{display:grid;gap:16px;max-height:min(58vh,560px);overflow:auto;padding:2px 4px 2px 0}
+.dl-g h3{display:flex;align-items:center;gap:8px;margin:0 0 6px;padding-bottom:6px;border-bottom:1px solid var(--b);font-size:12.5px;font-weight:700;color:var(--t)}
+.dl-g h3 label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.dl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 16px}
+.dl-grid label{display:flex;gap:7px;align-items:flex-start;padding:3px 0;font-size:12.5px;line-height:1.35;color:var(--t2);cursor:pointer}
+.dl-g input{accent-color:var(--a);margin:2px 0 0;flex-shrink:0}
+.dl-ft{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--b)}
+.dl-ft .mdl-a{margin-left:auto}
+.dlbar .seg{flex-wrap:wrap}
+@media (max-width:640px){.mdl-b{padding:20px 18px}.dlbar .seg span{padding:6px 9px}}

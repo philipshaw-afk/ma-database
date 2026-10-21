@@ -330,9 +330,10 @@
     status: [["Nr.", "r", null], ["Target", "sort", "target"], ["Bidder", "sort", "bidder"], ["Deal no", "sort", "deal_no"], ["Ann. date", "sort", "_ann"], ["Regime", "sort", "regime"], ["Structure", "sort", "offer_structure"], ["Status", "sort", "current_status"], ["% agreed", "sort r", "pct_agreed_total"], ["Threshold", "sort r", "acceptance_threshold_pct"], ["Key date", "sort", "_kd"], ["Regulatory", "sort", "regulatory_status"], ["Accept.", "sort r", "acceptances_pct"], ["Report", "", null], ['<input type="checkbox" id="pdb-all" checked aria-label="Select all">', "c", null]]
   };
   const sel = new Set();
+  const sorted = () => [...cur].sort((a, b) => { let x = a[sortK], y = b[sortK]; const nx = x == null || x === "", ny = y == null || y === ""; if (nx && ny) return 0; if (nx) return 1; if (ny) return -1; if (typeof x === "string") return x.localeCompare(y) * sortD; return (x - y) * sortD; });
   function render() {
     cur.forEach(d => { d._kd = keyDate(d).t; });
-    const rows = [...cur].sort((a, b) => { let x = a[sortK], y = b[sortK]; const nx = x == null || x === "", ny = y == null || y === ""; if (nx && ny) return 0; if (nx) return 1; if (ny) return -1; if (typeof x === "string") return x.localeCompare(y) * sortD; return (x - y) * sortD; });
+    const rows = sorted();
     const cols = COLS[view];
     const thd = "<thead><tr>" + cols.map(c => '<th class="' + c[1] + (c[2] === sortK ? " so" + (sortD > 0 ? " asc" : "") : "") + '"' + (c[2] ? ' data-k="' + c[2] + '"' : "") + ">" + c[0] + "</th>").join("") + "</tr></thead>";
     const bar = v => v == null ? "" : '<span class="bar"><i style="width:' + Math.max(0, Math.min(100, v)) + '%"></i></span>';
@@ -389,9 +390,172 @@
   }
   $("#r-dl").addEventListener("click", () => {
     const kind = (document.querySelector('input[name="dlt"]:checked') || {}).value || "deal";
-    const rows = cur.filter(d => sel.has(d.deal_no));
+    const rows = sorted().filter(d => sel.has(d.deal_no));
     if (!rows.length) { MAM.toast("Select at least one deal to download.", true); return; }
+    if (XL[kind]) { openXl(kind, rows); return; }
     if (kind === "status" && !rows.some(d => d.has_status)) { MAM.toast("None of the selected deals has an offer-status record.", true); return; }
     download(rows, (kind === "status" ? "offer_status_" : "deals_") + new Date().toISOString().slice(0, 10) + ".csv", kind);
   });
+
+  /* ---------- Excel downloads: transaction multiples and bid premia (step 3, as on the old DataBase) ----------
+     Figures come from each deal report (db_export_rows): values in £ million, multiples in times, premia and ratios in %. */
+  const fv = k => x => x.f[k];
+  const pick = (...g) => x => { for (const f of g) { const v = f(x); if (has(v)) return v; } return null; };
+  const col = (key, head, get, fmt, label) => ({ key, head, get, fmt: fmt || "t", label: label || head });
+  /* head = the column name in the old site's spreadsheets, label = the name on its download form */
+  const C = {
+    no: col("no", "Deal Number", x => x.n),
+    ann: col("ann", "Date announced", pick(x => x.da, fv("Date announced")), "d", "Date Announced"),
+    comp: col("comp", "Date completed", x => x.kd.completed, "d", "Date Completed"),
+    tname: col("tname", "Target Name", pick(x => x.t, fv("Target Name"))),
+    tctry: col("tctry", "Country", pick(x => x.tc, fv("Country")), "t", "Target Country"),
+    act: col("act", "Target Activities", pick(fv("Target Activities"), fv("pdf_activities"))),
+    sect: col("sect", "Industrial Sector", pick(x => x.sec, fv("Industrial Sector")), "t", "Target Sector"),
+    bname: col("bname", "Ultimate Bidder", pick(x => x.b, fv("Ultimate Bidder")), "t", "Bidder Name"),
+    bctry: col("bctry", "Country", x => x.bc, "t", "Bidder Country"),
+    dname: col("dname", "Ultimate Divestor name", pick(x => x.s, fv("Ultimate Divestor name")), "t", "Divestor Name"),
+    dctry: col("dctry", "Country", x => x.sc, "t", "Divestor Country"),
+    type: col("type", "Type of deal", pick(x => x.ty, fv("Type of deal")), "t", "Deal Type"),
+    stat: col("stat", "Status of deal", pick(x => x.st, fv("Status of deal")), "t", "Deal Status"),
+    att: col("att", "Deal Attitude", fv("Deal Attitude")),
+    cons: col("cons", "Consideration type", fv("Consideration type"), "t", "Consideration Type"),
+    eqv: col("eqv", "Implied Total Equity Value", fv("Implied Total Equity Value"), "m", "Total Equity Value"),
+    dadd: col("dadd", "Disclosure Date Added", pick(fv("Disclosure Date Added"), x => x.kd.disclosure_added), "d"),
+    drem: col("drem", "Disclosure Date Removed", pick(fv("Disclosure Date Removed"), x => x.kd.disclosure_removed), "d"),
+    named: col("named", "Offeror Named", fv("Offeror Named"), "d"),
+    sales: col("sales", "Turnover (Sales)", fv("Turnover (Sales)"), "m", "Target Sales"),
+    ni: col("ni", "Net Income (Earnings)", fv("Net Income (Earnings)"), "m", "Target Net Income"),
+    shf: col("shf", "Shareholders funds", fv("Shareholders funds"), "m", "Target Shareholder Funds"),
+    ps: col("ps", "Price/Sales", fv("Price/Sales"), "x"),
+    pe: col("pe", "Price/Earnings", fv("Price/Earnings"), "x"),
+    pb: col("pb", "Price/Book", fv("Price/Book"), "x", "Price/Book Value"),
+    nd: col("nd", "Net debt", fv("Net debt"), "m", "Net Debt"),
+    ev: col("ev", "Enterprise Value", fv("Enterprise Value"), "m"),
+    ebitda: col("ebitda", "EBITDA", fv("EBITDA"), "m", "Target EBITDA"),
+    ebita: col("ebita", "EBITA", fv("EBITA"), "m", "Target EBITA"),
+    ebit: col("ebit", "Operating profit", fv("Operating profit"), "m", "Target EBIT"),
+    pbt: col("pbt", "Net profit before tax", fv("Net profit before tax"), "m", "Target Profit Before Tax"),
+    evs: col("evs", "Enterprise Value/Sales", fv("Enterprise Value/Sales"), "x"),
+    evebitda: col("evebitda", "Enterprise Value/EBITDA", fv("Enterprise Value/EBITDA"), "x"),
+    evebita: col("evebita", "Enterprise Value/EBITA", fv("Enterprise Value/EBITA"), "x"),
+    evebit: col("evebit", "Enterprise Value/EBIT", fv("Enterprise Value/EBIT"), "x"),
+    pbe: col("pbe", "Price/Bank Earnings", fv("Price/Bank Earnings"), "x", "Price to Bank Earnings"),
+    cir: col("cir", "Cost/Income Ratio", fv("Cost/Income Ratio"), "p", "Cost to Income Ratio"),
+    nim: col("nim", "Net Interest Margin", fv("Net Interest Margin"), "p"),
+    bdr: col("bdr", "Bad Debt Ratio", fv("Bad Debt Ratio"), "p"),
+    roe: col("roe", "Return on Equity", fv("Return on Equity"), "p"),
+    roae: col("roae", "Return on Avg. Equity", fv("Return on Avg. Equity"), "p", "Return on Average Equity"),
+    roa: col("roa", "Return on Assets", fv("Return on Assets"), "p"),
+    roaa: col("roaa", "Return on Avg. Assets", fv("Return on Avg. Assets"), "p", "Return on Average Assets"),
+    t1: col("t1", "Tier 1 Ratio", fv("Tier 1 Ratio"), "p"),
+    tcr: col("tcr", "Total Capital Ratio", fv("Total Capital Ratio"), "p")
+  };
+  /* bid premia: the columns and order of the old site's "M&A Monitor Bid Premia Tables" */
+  const PREM = ["Pre-bid speculation premium", "1 day before announcement premium", "1 week before announcement premium", "2 weeks before announcement premium",
+    "3 weeks before announcement premium", "4 weeks before announcement premium", "30 day average before announcement premium",
+    "2 months before announcement premium", "3 months before announcement premium"];
+  const BP = [C.no, C.ann, C.comp, col("pbd", "Pre-bid speculation date", pick(fv("Pre-bid speculation date"), x => x.kd.pre_bid_speculation), "d", "Pre-Bid Speculation Date"),
+    C.tname, C.tctry, C.act, C.sect, C.bname, C.dname, C.type, C.stat, C.att, C.cons, C.eqv, C.ev, C.dadd, C.drem]
+    .concat(PREM.map((h, i) => col("pr" + i, h, fv(h), "p", h.charAt(0).toUpperCase() + h.slice(1))));
+  /* sheet layouts follow the old downloads: multiples have the header in row 6 with fitted columns, bid premia in row 8 at width 20 */
+  const XL = {
+    multiples: { title: "Transaction multiples download", file: "transaction_multiples",
+      sheet: { desc: "Transaction Multiples download (prices in GBP)", units: "Values : £ million; multiples in times; bank ratios in %", head: 6, height: 40, align: "center", fit: true },
+      groups: [
+        ["Deal information", [C.no, C.ann, C.comp, C.tname, C.tctry, C.act, C.sect, C.bname, C.bctry, C.dname, C.dctry, C.type, C.stat, C.att, C.cons, C.eqv, C.dadd, C.drem, C.named]],
+        ["Equity value multiples", [C.sales, C.ni, C.shf, C.ps, C.pe, C.pb]],
+        ["Enterprise value multiples", [C.nd, C.ev, C.sales, C.ebitda, C.ebita, C.ebit, C.pbt, C.evs, C.evebitda, C.evebita, C.evebit]],
+        ["Financial sector multiples", [C.shf, C.pb, C.pbe, C.cir, C.nim, C.bdr, C.roe, C.roae, C.roa, C.roaa, C.t1, C.tcr]]] },
+    premia: { title: "Bid premia download", file: "bid_premia",
+      sheet: { desc: "M&A Monitor Bid Premia Tables", units: "Values : £ million; premia in %", head: 8, height: 70, align: null, fit: false },
+      groups: [["Deal information", BP.slice(0, 18)], ["Bid premia (%)", BP.slice(18)]] }
+  };
+
+  let xlKind = null, xlRows = [];
+  const dlg = $("#dlg-dl");
+  function openXl(kind, rows) {
+    xlKind = kind; xlRows = rows;
+    const def = XL[kind], rep = rows.filter(d => d.has_report).length;
+    $("#dl-t").textContent = def.title;
+    $("#dl-n").textContent = (rep === rows.length ? rep.toLocaleString("en-GB") + " selected deal" + (rep === 1 ? "" : "s") : rep.toLocaleString("en-GB") + " of the " + rows.length.toLocaleString("en-GB") + " selected deals have a deal report and will be in the download") + ". Untick any columns you do not need.";
+    $("#dl-groups").innerHTML = def.groups.map((g, gi) => '<div class="dl-g"><h3><label><input type="checkbox" data-grp="' + gi + '" checked> ' + esc(g[0]) + '</label></h3><div class="dl-grid">' +
+      g[1].map(c => '<label><input type="checkbox" data-k="' + c.key + '" data-g="' + gi + '" checked> ' + esc(c.label) + "</label>").join("") + "</div></div>").join("");
+    $("#dl-go").disabled = !rep; dlMsg("");
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+  }
+  const dlMsg = t => { const m = $("#dl-msg"); m.textContent = t || ""; m.hidden = !t; };
+  const syncGroups = () => $$("#dl-groups [data-grp]").forEach(g => { const b = $$('#dl-groups [data-g="' + g.dataset.grp + '"]'), n = b.filter(i => i.checked).length; g.checked = n === b.length; g.indeterminate = n > 0 && n < b.length; });
+  $("#dl-groups").addEventListener("change", e => {
+    const t = e.target;
+    if (t.dataset.grp != null) $$('#dl-groups [data-g="' + t.dataset.grp + '"]').forEach(i => { i.checked = t.checked; $$('#dl-groups [data-k="' + i.dataset.k + '"]').forEach(j => j.checked = t.checked); });
+    else if (t.dataset.k) $$('#dl-groups [data-k="' + t.dataset.k + '"]').forEach(j => j.checked = t.checked);   // a column listed in two groups is one column
+    syncGroups(); dlMsg("");
+  });
+  $("#dl-close").addEventListener("click", () => dlg.close());
+  $("#dl-go").addEventListener("click", async () => {
+    const def = XL[xlKind], on = new Set($$("#dl-groups [data-k]").filter(i => i.checked).map(i => i.dataset.k));
+    const seen = new Set(), cols = [];
+    def.groups.forEach(g => g[1].forEach(c => { if (on.has(c.key) && !seen.has(c.key)) { seen.add(c.key); cols.push(c); } }));
+    if (!cols.length) { dlMsg("Tick at least one column."); return; }
+    const btn = $("#dl-go"), lab = btn.innerHTML; btn.disabled = true; btn.textContent = "Preparing…"; dlMsg("");
+    try {
+      const nos = xlRows.filter(d => d.has_report).map(d => d.deal_no);
+      const { data, error } = await MAM.sb.rpc("db_export_rows", { p_numbers: nos });
+      if (error) throw new Error(/db_export_rows/.test(error.message) ? "the Excel downloads need a database update that has not been run yet" : error.message);
+      const by = {}; (data || []).forEach(x => { x.f = x.f || {}; x.kd = x.kd || {}; by[x.n] = x; });
+      const rows = nos.map(n => by[n]).filter(Boolean);
+      if (!rows.length) throw new Error("none of the selected deals has figures to download");
+      await MAM.xlsx(def.sheet, cols, rows, def.file + "_" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + ".xlsx");
+      dlg.close();
+    } catch (e) { dlMsg("Could not make the spreadsheet: " + (e.message || e) + "."); }
+    finally { btn.disabled = false; btn.innerHTML = lab; }
+  });
+
+  /* the spreadsheet itself, laid out like the old site's downloads: grey title band, blue header row 8, Arial 8 */
+  let xlLib = null;
+  const loadExcel = () => xlLib || (xlLib = new Promise((res, rej) => {
+    if (window.ExcelJS) return res(window.ExcelJS);
+    const s = document.createElement("script"); s.src = "assets/js/vendor/exceljs-4.4.0.min.js";
+    s.onload = () => res(window.ExcelJS); s.onerror = () => { xlLib = null; rej(new Error("could not load the Excel writer")); };
+    document.head.appendChild(s);
+  }));
+  const isoDate = v => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || "")); return m ? new Date(Date.UTC(+m[1], m[2] - 1, +m[3])) : null; };
+  const FMT = { m: "0.000", x: "0.00", p: "0.00" };
+  MAM.xlsx = async function (L, cols, rows, name) {
+    const X = await loadExcel();
+    const wb = new X.Workbook(); wb.creator = "M&A Monitor"; wb.created = new Date();
+    const ws = wb.addWorksheet("Sheet 1");
+    const n = Math.max(cols.length, 6), H = L.head, A = (sz, b, color) => ({ name: "Arial", family: 2, size: sz, bold: !!b, color: color ? { argb: color } : undefined });
+    const grey = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDDDDDD" } };
+    const cells = rows.map(x => cols.map(c => c.get(x)));
+    ws.columns = Array.from({ length: n }, (_, i) => ({ width: !L.fit || i >= cols.length ? 20
+      : Math.min(60, Math.max(9, (cols[i].fmt === "d" ? 10 : 0) + 2, Math.ceil(cols[i].head.length * 0.9) + 2, ...cells.map(r => has(r[i]) ? String(r[i]).trim().length + 2 : 0))) }));
+    const now = new Date(), p2 = v => String(v).padStart(2, "0");
+    const band = ["M&A Monitor", "", "Description : " + L.desc, "Date : " + p2(now.getDate()) + "/" + p2(now.getMonth() + 1) + "/" + now.getFullYear() + " " + p2(now.getHours()) + ":" + p2(now.getMinutes()), L.units];
+    for (let i = 0; i < H - 1; i++) {
+      const r = ws.getRow(i + 1); r.height = 20;
+      for (let c = 1; c <= n; c++) { const cell = r.getCell(c); cell.fill = grey; cell.font = A(8); }
+      if (i < 5) ws.mergeCells(i + 1, 1, i + 1, 6);
+      const a = r.getCell(1); a.value = band[i] || null; a.font = i === 0 ? A(12, true, "FF0066CC") : i < 4 ? A(10, true, "FF000000") : A(8, false, "FF000000");
+    }
+    const hd = ws.getRow(H); hd.height = L.height;
+    cols.forEach((c, i) => { const cell = hd.getCell(i + 1); cell.value = c.head; cell.font = A(8, true, "FFFFFFF7");
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0066CC" } }; cell.alignment = L.align ? { horizontal: L.align, vertical: "middle", wrapText: true } : { vertical: "bottom", wrapText: true };
+      cell.border = { bottom: { style: "double", color: { argb: "FF000000" } } }; });
+    for (let c = cols.length + 1; c <= n; c++) hd.getCell(c).fill = grey;
+    const font = A(8, false, "FF000000");
+    cells.forEach((vals, ri) => {
+      const r = ws.getRow(H + 1 + ri);
+      cols.forEach((c, i) => {
+        const cell = r.getCell(i + 1), raw = vals[i]; cell.font = font; cell.alignment = { wrapText: true };
+        if (!has(raw)) return;
+        if (c.fmt === "d") { const d = isoDate(raw); cell.value = d || String(raw); if (d) cell.numFmt = "dd/mm/yyyy"; }
+        else if (FMT[c.fmt]) { const v = num(raw); if (v == null) cell.value = String(raw).trim(); else { cell.value = v; cell.numFmt = FMT[c.fmt]; } }
+        else { cell.value = String(raw).trim(); if (c.key === "no") cell.alignment = { horizontal: "right", wrapText: true }; }
+      });
+    });
+    const buf = await wb.xlsx.writeBuffer();
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  };
 })();
