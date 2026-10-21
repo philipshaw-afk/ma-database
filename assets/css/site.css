@@ -160,3 +160,9 @@ dialog.mdl.wide{width:min(900px,calc(100vw - 32px))}
 .vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media (max-width:520px){.nrep .scmp .scbc{display:none}.nrep table.t.scmp th{white-space:normal;line-height:1.25;vertical-align:bottom;padding-left:6px;padding-right:6px}.nrep table.t.scmp td:first-child{width:44%}.nrep table.t.scmp td{font-size:12.5px;padding-left:6px;padding-right:6px}.nrep table.t.scmp td small{font-size:10.5px}}
 @media print{.nrep .sh.scmp-h{margin-top:10px}.nrep table.t.scmp td small{font-size:7.5px}.nrep .scmp .scbc{width:40px}}
+
+/* search form · Clear search */
+.presets .s-clear{margin-left:auto;display:inline-flex;align-items:center;gap:5px}
+.presets .s-clear svg{width:12px;height:12px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round}
+#sform [data-clear]:disabled{opacity:.45;cursor:default;pointer-events:none;box-shadow:none}
+@media (max-width:640px){.presets .s-clear{margin-left:0}}

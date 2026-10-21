@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@500;700;800&family=Source+Serif+4:ital,opsz,wght@1,8..60,700&display=swap">
 <link rel="stylesheet" href="assets/css/base.css?v=1">
-<link rel="stylesheet" href="assets/css/site.css?v=4">
+<link rel="stylesheet" href="assets/css/site.css?v=5">
 </head>
 <body>
 <div class="mesh" aria-hidden="true"></div>
@@ -146,7 +146,7 @@
   </div>
 
   <div class="card" id="sform">
-    <div class="presets"><span class="lab">Quick searches</span><button type="button" class="btn ghost sm" data-preset="pending-public">Pending public offers</button><button type="button" class="btn ghost sm" data-preset="pending-private">Pending private deals</button><button type="button" class="btn ghost sm" data-preset="uk-public">UK &amp; Irish public offers</button><button type="button" class="btn ghost sm" data-preset="recent">Announced in the last 30 days</button></div>
+    <div class="presets"><span class="lab">Quick searches</span><button type="button" class="btn ghost sm" data-preset="pending-public">Pending public offers</button><button type="button" class="btn ghost sm" data-preset="pending-private">Pending private deals</button><button type="button" class="btn ghost sm" data-preset="uk-public">UK &amp; Irish public offers</button><button type="button" class="btn ghost sm" data-preset="recent">Announced in the last 30 days</button><button type="button" class="btn ghost sm s-clear" data-clear disabled title="Clear every criterion on all tabs"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>Clear search</button></div>
     <div class="tabs" role="tablist">
       <button type="button" role="tab" aria-selected="true" data-p="p-1">Parties</button>
       <button type="button" role="tab" aria-selected="false" data-p="p-2">Deal Parameters</button>
@@ -359,7 +359,7 @@
     </div>
 
     <div class="actbar">
-      <div class="l"><button type="button" class="btn ghost" id="s-new">New Search</button><span class="pdb-h" id="s-crit-n"></span></div>
+      <div class="l"><button type="button" class="btn ghost" id="s-new" data-clear disabled title="Clear every criterion on all tabs">Clear search</button><span class="pdb-h" id="s-crit-n"></span></div>
       <a class="btn" href="#results" id="s-go">Search <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
     </div>
   </div>
@@ -659,7 +659,7 @@
 <script src="assets/js/stats.js?v=1"></script>
 <script src="assets/js/revisions.js?v=1"></script>
 <script src="assets/js/report.js?v=4"></script>
-<script src="assets/js/database.js?v=4"></script>
+<script src="assets/js/database.js?v=5"></script>
 <script src="assets/js/admin.js?v=1"></script>
 <script src="assets/js/main.js?v=1"></script>
 <script src="assets/js/grapevine.js?v=3"></script>

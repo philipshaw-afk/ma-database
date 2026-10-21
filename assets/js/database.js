@@ -305,11 +305,18 @@
       const my = ++seq; const r = await readAndFilter(); if (my !== seq) return;
       MAM.odo($("#s-odo"), r.rows.length);
       $("#s-crit-n").textContent = r.crit.length ? r.crit.length + " criteri" + (r.crit.length === 1 ? "on" : "a") + " set" : "No criteria set: every deal on the DataBase";
+      $$("[data-clear]", form).forEach(x => x.disabled = !r.crit.length);
       $$(".pdb-c").forEach(b => b.classList.toggle("on", [...b.querySelectorAll("input")].some(i => i.type === "radio" ? (i.checked && i.value !== "") : i.type === "checkbox" ? i.checked : i.value.trim() !== "")));
     }, 160);
   }
   form.addEventListener("input", live); form.addEventListener("change", live);
-  $("#s-new").addEventListener("click", resetForm);
+  // Clear search (top and bottom of the form): every criterion on every tab back to its default, and back to the first tab
+  $$("[data-clear]", form).forEach(btn => btn.addEventListener("click", () => {
+    resetForm();
+    const first = form.querySelector(".tabs button"); if (first) first.click();
+    const top = form.getBoundingClientRect().top; if (top < 0) window.scrollTo({ top: window.scrollY + top - 90, behavior: "smooth" });
+    MAM.toast("Search cleared");
+  }));
   MAM.hooks["show:search"] = () => { initForm(); live(); };
 
   /* ---------------- RESULTS ---------------- */
