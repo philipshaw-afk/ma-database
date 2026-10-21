@@ -174,6 +174,7 @@
     if (!session) {
       MAM.me = null; MAM.ready = false;
       $("#user-chip").hidden = true; $$(".admin-only").forEach(x => x.hidden = true);
+      if (MAM.hooks.signedOut) MAM.hooks.signedOut();
       MAM.route(); return;
     }
     if (/[?&]code=/.test(location.search)) history.replaceState(null, "", location.pathname + location.hash);
@@ -194,6 +195,7 @@
     $$(".admin-only").forEach(x => x.hidden = MAM.me.role !== "admin");
     if (!MAM.me.role) { MAM.route(); return; }
     MAM.route();
+    if (MAM.hooks.signedIn) { try { MAM.hooks.signedIn(); } catch (e) { console.warn(e); } }
     try { await MAM.hooks.load(); }
     catch (e) { console.error(e); $("#boot-msg").textContent = "Could not load the DataBase: " + (e.message || e); showPage("loading"); return; }
     MAM.ready = true;
