@@ -37,11 +37,11 @@
       const c = r.cells;
       if (c.length === 1) { h += '<tr class="grp"><td colspan="' + ncol + '">' + esc(c[0]) + "</td></tr>"; return; }
       const vals = c.slice(1), allNum = vals.every(v => NUMRX.test(v.replace(/\s/g, "")));
-      const isHead = i === 0 && !allNum;
       const label = c[0], pad = ncol - c.length;
+      const isHead = i === 0 && (!allNum || /^(as at|y\/e|year|period|half|six months|ttm|\d{1,2}\/\d{1,2})/i.test(label) || vals.every(v => /^(19|20)\d\d[a-z]?$/i.test(v)));
       if (isHead) { h += "<tr><th>" + esc(label) + "</th>" + "<th></th>".repeat(pad) + vals.map(v => '<th class="r">' + esc(v) + "</th>").join("") + "</tr>"; return; }
-      const tot = r.rule || /^total\b/i.test(label);
-      h += "<tr" + (tot ? ' class="tot"' : "") + "><td>" + esc(label) + "</td>" + "<td></td>".repeat(pad) + vals.map(v => { const n = NUMRX.test(v.replace(/\s/g, "")); return "<td class=\"" + (n ? "num" + (/\)$/.test(v) ? "" : " ps") : "") + '">' + esc(v) + "</td>"; }).join("") + "</tr>";
+      const tot = /^total\b/i.test(label), cls = [tot ? "tot" : "", r.rule && !tot ? "rule" : ""].filter(Boolean).join(" ");
+      h += "<tr" + (cls ? ' class="' + cls + '"' : "") + "><td>" + esc(label) + "</td>" + "<td></td>".repeat(pad) + vals.map(v => { const n = NUMRX.test(v.replace(/\s/g, "")); return "<td class=\"" + (n ? "num" + (/\)$/.test(v) ? "" : " ps") : "") + '">' + esc(v) + "</td>"; }).join("") + "</tr>";
     });
     return h + "</tbody></table></div>";
   }
@@ -50,7 +50,8 @@
     const wrap = Math.max(80, ...lines.map(l => l.length).filter(n => n < 160));
     const out = [], toc = [];
     let para = [], list = null, first = true, firstHead = true;
-    const flushP = () => { if (para.length) { out.push((list ? "<li>" : "<p>") + esc(para.join(" ").replace(/\s+/g, " ").trim()) + (list ? "</li>" : "</p>")); para = []; } };
+    const joinLines = a => a.reduce((acc, l) => !acc ? l : (/[A-Za-z]-$/.test(acc) && /^[a-z]/.test(l) ? acc + l : acc + " " + l), "");
+    const flushP = () => { if (para.length) { out.push((list ? "<li>" : "<p>") + esc(joinLines(para).replace(/\s+/g, " ").trim()) + (list ? "</li>" : "</p>")); para = []; } };
     const closeList = () => { flushP(); if (list) { out.push("</ul>"); list = null; } };
     for (let i = 0; i < lines.length; i++) {
       const raw = lines[i], t = raw.trim();
@@ -78,6 +79,10 @@
       }
       if (isSub(t)) { closeList(); out.push("<h5>" + esc(t) + "</h5>"); first = false; continue; }
       const bullet = /^[*•▪-]\s+/.test(t);
+      if (bullet) {
+        const bt = t.replace(/^[*•▪-]\s+/, ""), nx = (lines[i + 1] || "").trim();
+        if (bt.length < 70 && !/[.;:,)]$/.test(bt) && /^[A-Z]/.test(nx) && !/^[*•▪-]\s/.test(nx) && !isHeading(nx)) { closeList(); out.push('<h5 class="bh">' + esc(bt) + "</h5>"); first = false; continue; }
+      }
       if (bullet) { flushP(); if (!list) { out.push("<ul>"); list = true; } para.push(t.replace(/^[*•▪-]\s+/, "")); }
       else {
         if (!para.length && list && !/^[a-z(]/.test(t)) closeList();
