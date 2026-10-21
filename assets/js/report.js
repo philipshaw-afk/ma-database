@@ -152,6 +152,7 @@
     tabs.push(["financials", "Financials"]);
     if (d.overview || d.profiles || d.background) tabs.push(["commentary", "Commentary"]);
     if (d.financial_notes) tabs.push(["payment", "Payment details"]);
+    if (d.target_details) tabs.push(["target", "Target details"]);
     tabs.push(["data", "All fields"]);
     h += '<nav class="rtab" role="tablist" aria-label="Report sections">' + tabs.map((t, i) => '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' + (i === 0) + '">' + t[1] + "</button>").join("") + "</nav>";
 
@@ -253,6 +254,7 @@
     };
     panels += docPanel("commentary", "Commentary", [[d.overview, "c-o"], [d.profiles, "c-p"], [d.background, "c-b"]]);
     panels += docPanel("payment", "Payment details", [[d.financial_notes, "p"]]);
+    panels += docPanel("target", "Target details", [[d.target_details, "t"]]);
     /* --- all fields --- */
     {
       const HIDE = /^(pdf_|added_by$|admin_id$|value_note$)/;
