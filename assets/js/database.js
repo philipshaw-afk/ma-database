@@ -194,6 +194,7 @@
   const PRESETS = {
     "pending-public": () => { setSeg("pub", "y"); setChips("dp-status", ["Pending"]); },
     "pending-private": () => { setSeg("pub", "n"); setChips("dp-status", ["Pending"]); },
+    "pending-all": () => { setChips("dp-status", ["Pending"]); },
     "uk-public": () => { setSeg("pub", "y"); setChips("dp-region", ["UK & Ireland"]); },
     "recent": () => { const d = new Date(Date.now() - 30 * 864e5); $("#dp-ann").value = d.toLocaleDateString("en-GB"); }
   };

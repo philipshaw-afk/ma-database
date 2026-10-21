@@ -116,7 +116,14 @@ const stack=(counts,labels,order)=>{const tot=order.reduce((s,k)=>s+(counts[k]||
   return '<div class="sbar" role="img" aria-label="'+esc(order.filter(k=>counts[k]).map(k=>labels[k]+' '+counts[k]).join(', '))+'">'+order.filter(k=>counts[k]).map(k=>'<i class="'+k+'" style="width:'+(counts[k]/tot*100).toFixed(2)+'%" data-tip="'+esc(labels[k]+': '+counts[k])+'" title="'+esc(labels[k]+': '+counts[k])+'"></i>').join('')+'</div>'+
     '<ul class="sleg">'+order.filter(k=>counts[k]).map(k=>'<li><i class="'+k+'"></i><span>'+esc(labels[k])+'</span><b>'+counts[k]+'</b></li>').join('')+'</ul>';};
 function dash(){
-  const box=$('#dash-box');if(!box||!DEALS.length)return;
+  const box=$('#dash-box');if(!box)return;
+  // headline: DIANA's own pending deal reports on the site (status Pending; proposed offers counted separately)
+  const ALL=((window.MAM&&window.MAM.deals)||[]).filter(r=>r.has_report);
+  const pend=ALL.filter(r=>/^Pending$/i.test(r.deal_status||'')),pPub=pend.filter(r=>r.pub).length,prop=ALL.filter(r=>/^Proposed$/i.test(r.deal_status||'')).length;
+  const pendTile='<div><span>Pending deals</span><b>'+pend.length+'</b><em>'+pPub+' public offer'+(pPub===1?'':'s')+' · '+(pend.length-pPub)+' other deal'+(pend.length-pPub===1?'':'s')+(prop?' · plus '+prop+' proposed':'')+'</em></div>';
+  const srch='<a href="#results" data-preset="pending-all">search them</a>';
+  if(!DEALS.length){if(!pend.length){box.innerHTML='';return;}
+    box.innerHTML='<div class="card dash"><div class="card-hd"><span class="card-t">Pending deals on the DataBase</span><span class="card-s">'+pend.length+' pending deal reports · '+srch+'</span></div><div class="dk">'+pendTile+'</div></div>';return;}
   const live=DEALS.filter(d=>!/^Completed|^Superseded|Lapsed|Withdrawn/.test(d.current_status||''));
   const tv=live.reduce((s,d)=>s+(+d.equity_value_gbp||0),0);
   const t0=isoOf(today),mEnd=isoOf(new Date(today.getFullYear(),today.getMonth()+1,0)),in14=isoOf(new Date(today.getTime()+14*864e5));
@@ -130,19 +137,19 @@ function dash(){
   const mx=Math.max(...top.map(x=>x[1].n));
   const bars='<ul class="hb">'+top.map(([k,o])=>'<li data-tip="'+esc(k+': '+o.n+' pending offer'+(o.n===1?'':'s')+' · '+money(o.v)+' equity value')+'" title="'+esc(k+': '+o.n+' · '+money(o.v))+'"><span class="bnm">'+esc(k)+'</span><span class="btr"><i style="width:'+(o.n/mx*100).toFixed(1)+'%"></i></span><b>'+o.n+'</b></li>').join('')+'</ul>';
   const st={},rg={};DEALS.forEach(d=>{const s=stCls(d.current_status||'');st[s]=(st[s]||0)+1;});live.forEach(d=>{const r=regCls(d.regulatory_status||'');rg[r]=(rg[r]||0)+1;});
-  const big=[...live].sort((a,b)=>(+b.equity_value_gbp||0)-(+a.equity_value_gbp||0)).slice(0,6);const bmx=+big[0].equity_value_gbp||1;
+  const big=[...live].sort((a,b)=>(+b.equity_value_gbp||0)-(+a.equity_value_gbp||0)).slice(0,6);const bmx=big.length?(+big[0].equity_value_gbp||1):1;
   const title=s=>{const e=EV.find(x=>x.dno===s.deal_no);return e?e.n:s.target;};
   const li=(e,full)=>'<li><span class="dsd">'+pd(e.d).getDate()+' '+MON[pd(e.d).getMonth()]+'</span><span class="dsw">'+who(e)+'<span class="evp ev-'+e.ty+'"><i></i>'+esc(e.l)+'</span></span>'+cd(e.d)+'</li>';
-  box.innerHTML='<div class="card dash"><div class="card-hd"><span class="card-t">Pending public offers on the DataBase</span><span class="card-s">Offer status as at '+esc(window.MAM.statusAsOfText||'')+' · '+DEALS.length+' deals in the pending-offers database · <a href="#results" data-preset="pending-public">search them</a></span></div>'+
-    '<div class="dk"><div><span>Pending offers</span><b>'+live.length+'</b><em>'+(DEALS.length-live.length)+' completed or superseded</em></div>'+
-    '<div><span>Total equity value</span><b>'+(tv/1000).toFixed(1)+'<small>£bn</small></b><em>across '+Object.keys(bc).length+' offer regimes</em></div>'+
+  box.innerHTML='<div class="card dash"><div class="card-hd"><span class="card-t">Pending deals on the DataBase</span><span class="card-s">'+pend.length+' pending deal reports · '+srch+' · offer status for '+live.length+' public offers as at '+esc(window.MAM.statusAsOfText||'')+'</span></div>'+
+    '<div class="dk">'+pendTile+
+    '<div><span>Public offer equity value</span><b>'+(tv/1000).toFixed(1)+'<small>£bn</small></b><em>'+live.length+' public offers with offer status · '+Object.keys(bc).length+' regimes</em></div>'+
     '<div><span>Closing in '+MONL[today.getMonth()]+'</span><b>'+closing.length+'</b><em>acceptance periods, PUSU and completions</em></div>'+
     '<div><span>Shareholder meetings</span><b>'+meets.length+'</b><em>still to come in '+MONL[today.getMonth()]+'</em></div></div>'+
-    '<div class="dg"><section><div class="dh"><b>By offer regime</b><span>pending offers</span></div>'+bars+'</section>'+
-    '<section><div class="dh"><b>Offer status</b><span>all '+DEALS.length+' deals</span></div>'+stack(st,stLab,['st-pend','st-unc','st-comp','st-sup'])+
-    '<div class="dh"><b>Regulatory status</b><span>pending offers</span></div>'+stack(rg,regLab,['rg-aw','rg-p2','rg-ok','rg-no','rg-na'])+'</section>'+
+    '<div class="dg"><section><div class="dh"><b>By offer regime</b><span>pending public offers</span></div>'+bars+'</section>'+
+    '<section><div class="dh"><b>Offer status</b><span>all '+DEALS.length+' public offers tracked</span></div>'+stack(st,stLab,['st-pend','st-unc','st-comp','st-sup'])+
+    '<div class="dh"><b>Regulatory status</b><span>pending public offers</span></div>'+stack(rg,regLab,['rg-aw','rg-p2','rg-ok','rg-no','rg-na'])+'</section>'+
     '<section><div class="dh"><b>Closing this month</b><a href="#calendar">Calendar →</a></div><ul class="dsl">'+(closing.length?closing.slice(0,8).map(e=>li(e)).join(''):'<li class="empty">Nothing else closes in '+MONL[today.getMonth()]+'.</li>')+(closing.length>8?'<li class="empty"><a href="#calendar">+ '+(closing.length-8)+' more in '+MONL[today.getMonth()]+' &#8594;</a></li>':'')+'</ul></section></div>'+
-    '<div class="dg dg2"><section><div class="dh"><b>Largest pending offers</b><span>equity value</span></div><ul class="lv">'+big.map(d=>'<li><span class="w"><a class="evt" href="#deal" data-open-deal="'+d.deal_no+'">'+esc(title(d))+'</a><small>'+esc(tc(d.bidder||'')+' · '+(d.regime||''))+'</small></span><span class="btr"><i style="width:'+((+d.equity_value_gbp||0)/bmx*100).toFixed(1)+'%"></i></span><b>'+money(+d.equity_value_gbp||0)+'</b></li>').join('')+'</ul></section>'+
+    '<div class="dg dg2"><section><div class="dh"><b>Largest pending public offers</b><span>equity value</span></div><ul class="lv">'+big.map(d=>'<li><span class="w"><a class="evt" href="#deal" data-open-deal="'+d.deal_no+'">'+esc(title(d))+'</a><small>'+esc(tc(d.bidder||'')+' · '+(d.regime||''))+'</small></span><span class="btr"><i style="width:'+((+d.equity_value_gbp||0)/bmx*100).toFixed(1)+'%"></i></span><b>'+money(+d.equity_value_gbp||0)+'</b></li>').join('')+'</ul></section>'+
     '<section><div class="dh"><b>Coming up in the next 14 days</b><a href="#calendar">Full calendar →</a></div><ul class="dsl">'+(next.length?next.slice(0,8).map(e=>li(e)).join(''):'<li class="empty">No events in the next 14 days.</li>')+(next.length>8?'<li class="empty"><a href="#calendar">+ '+(next.length-8)+' more in the calendar &#8594;</a></li>':'')+'</ul></section></div></div>';
 }
 window.__dashRender=dash;
