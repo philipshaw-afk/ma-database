@@ -108,6 +108,45 @@
   const facts = (pairs, cls) => { const ok = pairs.filter(p => has(p[1])); return ok.length ? '<dl class="facts ' + (cls || "c3") + '">' + ok.map(p => "<div><dt>" + esc(p[0]) + "</dt><dd>" + (p[2] ? p[1] : esc(p[1])) + "</dd></div>").join("") + "</dl>" : ""; };
   const card = (title, sub, body, cls, id) => '<section class="rc ' + (cls || "") + '"' + (id ? ' id="' + id + '"' : "") + '><header class="rc-h"><div><h3>' + esc(title) + "</h3>" + (sub ? "<p>" + sub + "</p>" : "") + "</div></header>" + body + "</section>";
   const regCls = s => /^No regulatory/.test(s) ? "no" : /^All regulatory|cleared/i.test(s) ? "ok" : /Phase 2|failed/i.test(s) ? "p2" : /Awaiting|Conditions/i.test(s) ? "aw" : "";
+  // a pre-bid premium of -100 is how the database records "not available" (e.g. possible offers)
+  const PREBID = "Pre-bid speculation premium";
+  const pval = (f, k) => { const x = fnum(f, k); return k === PREBID && x != null && x <= -100 ? null : x; };
+
+  /* ---------------- sector comparison ----------------
+     This deal's multiples and pre-bid premium against the sector medians from db_sector_comparison():
+     the other companies in the deal's first-listed sector on the DataBase, and for UK & Irish public offers
+     the premium from Offer Statistics. */
+  const CMP_MIN = 5;   // fewest other deals for a sector median to be shown
+  const CMP = [["EV / EBITDA", "Enterprise Value/EBITDA"], ["EV / Sales", "Enterprise Value/Sales"], ["EV / EBITA", "Enterprise Value/EBITA"], ["EV / EBIT", "Enterprise Value/EBIT"],
+    ["Price / Earnings", "Price/Earnings"], ["Price / Sales", "Price/Sales"], ["Price / Book", "Price/Book"], ["Price / Bank earnings", "Price/Bank Earnings"]];
+  const plural = (n, w) => n.toLocaleString("en-GB") + " " + w + (n === 1 ? "" : "s");
+  const signed = (v, dp) => { const r = +v.toFixed(dp); return (r > 0 ? "+" : "") + nf(r, dp); };
+  const cmpBar = (dv, cap, hl) => { const w = Math.max(1.5, Math.min(1, Math.abs(dv) / cap) * 50); return '<span class="scb' + (hl ? " hl" : "") + '" aria-hidden="true"><i class="' + (dv < 0 ? "neg" : "pos") + '" style="width:' + w.toFixed(1) + '%"></i></span>'; };
+  function sectorCmp(f, c) {
+    if (!c || !c.sector) return "";
+    const sec = c.sector.replace(/\s*\((standard|banking) template\)$/i, "");
+    const rows = [];
+    CMP.forEach(([lab, key]) => {
+      const x = fnum(f, key); if (x == null || x <= 0) return;
+      const [med, n] = (c.m || {})[key] || [null, 0], ok = med != null && n >= CMP_MIN, dv = ok ? (x / med - 1) * 100 : null;
+      rows.push({ lab, sub: ok ? "median of " + plural(n, "deal") : n ? "only " + plural(n, "other deal") : "no other deals yet",
+        x: nf(x, 2) + "x", m: ok ? nf(med, 2) + "x" : "—", bar: ok ? cmpBar(dv, 100) : "", vs: ok ? signed(dv, 0) + "%" : "" });
+    });
+    const p = pval(f, PREBID), cp = c.prem;
+    let premNote = "";
+    if (p != null && cp) {
+      const ok = cp.med != null && cp.n >= CMP_MIN, dv = ok ? p - cp.med : null;
+      const sub = ok ? esc("median of " + plural(cp.n, cp.src === "stats" ? "UK & Irish offer" : "public offer")) + (cp.src === "stats" ? ' · <a href="#arb-stats">Offer Statistics</a>' : "")
+        : cp.n ? "only " + plural(cp.n, "other offer") : "no other offers yet";
+      rows.push({ hl: true, lab: "Pre-bid premium", sub,
+        x: signed(p, 1) + "%", m: ok ? signed(cp.med, 1) + "%" : "—", bar: ok ? cmpBar(dv, 50, true) : "", vs: ok ? signed(dv, 1) + " pts" : "" });
+      if (ok) premNote = cp.src === "stats" ? " The premium median is for UK &amp; Irish firm offers in the sector since " + esc(cp.since || 2008) + ", from Offer Statistics." : " The premium median is for the other public offers in the sector on the DataBase.";
+    }
+    if (!rows.length) return "";
+    return '<div class="sh scmp-h">Sector comparison <span>' + esc(sec) + '</span></div><table class="t scmp"><thead><tr><th>Multiple</th><th class="rr">This deal</th><th class="rr">Sector median</th><th class="scbc"><span class="vh">Comparison</span></th><th class="rr">vs sector</th></tr></thead><tbody>' +
+      rows.map(r => "<tr" + (r.hl ? ' class="pre"' : "") + '><td><span class="scl">' + esc(r.lab) + "</span><small>" + r.sub + '</small></td><td class="n x">' + r.x + '</td><td class="n">' + r.m + '</td><td class="scbc">' + r.bar + '</td><td class="n scv">' + r.vs + "</td></tr>").join("") +
+      '</tbody></table><p class="fine">Sector medians are for the other companies in ' + esc(sec) + " on the DataBase with that multiple recorded (zero and negative multiples are left out), shown where there are at least " + CMP_MIN + "." + premNote + "</p>";
+  }
 
   /* ---------------- report ---------------- */
   function build(no, res) {
@@ -116,7 +155,7 @@
     const ccy = d.currency || (s && s.currency) || "", pub = !!d.is_public;
     const T = MAM.tc(d.target), B = MAM.tc(fv(f, "Ultimate Bidder") || d.bidder), V = fv(f, "pdf_bidding_subsidiary"), D = d.seller || fv(f, "Ultimate Divestor name");
     const eq = fnum(f, "Implied Total Equity Value") ?? (d.value != null ? +d.value : null), ev = fnum(f, "Enterprise Value"), nd = fnum(f, "Net debt");
-    const prem = fnum(f, "Pre-bid speculation premium"), evebitda = fnum(f, "Enterprise Value/EBITDA"), ebitda = fnum(f, "EBITDA");
+    const prem = pval(f, PREBID), evebitda = fnum(f, "Enterprise Value/EBITDA"), ebitda = fnum(f, "EBITDA");
     const status = d.deal_status || "Pending", stc = status.split(" ")[0];
     const pctFor = s && has(s.pct_bid_for) ? num(s.pct_bid_for) : null, pctOwned = s && has(s.pct_owned) ? num(s.pct_owned) : null;
     const xb = idx.cross_border || (d.target_country && d.bidder_country ? (d.target_country === d.bidder_country ? "No" : "Yes") : "");
@@ -194,17 +233,18 @@
     const BANK = [["Net interest margin", "Net Interest Margin"], ["Return on avg. equity", "Return on Avg. Equity"], ["Return on avg. assets", "Return on Avg. Assets"], ["Return on equity", "Return on Equity"], ["Return on assets", "Return on Assets"], ["Cost / income ratio", "Cost/Income Ratio"], ["Bad debt ratio", "Bad Debt Ratio"], ["Tier 1 ratio", "Tier 1 Ratio"], ["Total capital ratio", "Total Capital Ratio"]];
     const brows = BANK.filter(m => fnum(f, m[1]) != null);
     const PRM = [["3 months before", "3 months before announcement premium"], ["2 months before", "2 months before announcement premium"], ["4 weeks before", "4 weeks before announcement premium"], ["3 weeks before", "3 weeks before announcement premium"], ["2 weeks before", "2 weeks before announcement premium"], ["1 week before", "1 week before announcement premium"], ["1 day before", "1 day before announcement premium"], ["30-day average", "30 day average before announcement premium"], ["Pre-bid speculation", "Pre-bid speculation premium"]];
-    const prows = PRM.filter(m => fnum(f, m[1]) != null);
+    const prows = PRM.filter(m => pval(f, m[1]) != null);
     if (mrows.length || frows.length || prows.length || brows.length) {
       let v = '<div class="vgrid">';
       v += "<div>";
       if (prows.length) {
-        const mx = Math.max(10, ...prows.map(p => Math.abs(fnum(f, p[1]))));
-        v += '<div class="sh">Bid premia <span>offer price vs share price</span></div><div class="pmx">' + prows.map(p => { const x = fnum(f, p[1]); return '<div class="pmr' + (p[0] === "Pre-bid speculation" ? " hl" : "") + '"><span class="pml">' + esc(p[0]) + '</span><span class="pmt"><i class="' + (x < 0 ? "neg" : "") + '" style="width:' + (Math.abs(x) / mx * 100).toFixed(1) + '%"></i></span><span class="pmv">' + (x >= 0 ? "+" : "") + nf(x, 1) + "%</span></div>"; }).join("") + "</div>";
+        const mx = Math.max(10, ...prows.map(p => Math.abs(pval(f, p[1]))));
+        v += '<div class="sh">Bid premia <span>offer price vs share price</span></div><div class="pmx">' + prows.map(p => { const x = pval(f, p[1]); return '<div class="pmr' + (p[0] === "Pre-bid speculation" ? " hl" : "") + '"><span class="pml">' + esc(p[0]) + '</span><span class="pmt"><i class="' + (x < 0 ? "neg" : "") + '" style="width:' + (Math.abs(x) / mx * 100).toFixed(1) + '%"></i></span><span class="pmv">' + (x >= 0 ? "+" : "") + nf(x, 1) + "%</span></div>"; }).join("") + "</div>";
       }
       if (frows.length) v += '<div class="sh" style="margin-top:' + (prows.length ? 18 : 0) + 'px">Target figures <span>' + esc(ccyLab(ccy).trim() || ccy) + " millions</span></div><table class=\"t\"><tbody>" + frows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n">' + nf(fnum(f, m[1]), 1) + "</td></tr>").join("") + "</tbody></table>";
       v += "</div><div>";
       if (mrows.length) v += '<div class="sh">Valuation multiples and ratios</div><table class="t mult"><thead><tr><th>As recorded on the database</th><th class="r">Value</th></tr></thead><tbody>' + mrows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n x">' + nf(fnum(f, m[1]), 2) + "x</td></tr>").join("") + "</tbody></table>";
+      v += sectorCmp(f, res.cmp);
       if (brows.length) v += '<div class="sh" style="margin-top:14px">Banking ratios</div><table class="t"><tbody>' + brows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n">' + nf(fnum(f, m[1]), 2) + "%</td></tr>").join("") + "</tbody></table>";
       v += "</div></div>";
       o += card("Valuation", esc(ccy ? (ccyLab(ccy).trim() === "£" ? "£" : ccy) + " millions" : "as recorded"), v, "span3");
@@ -314,9 +354,11 @@
     window.scrollTo(0, 0);
     let res = cache[no];
     if (!res) {
-      const { data, error } = await MAM.sb.rpc("db_deal", { p_deal_number: no });
+      // the sector comparison is extra: if it fails the report still opens without it
+      const [{ data, error }, cmp] = await Promise.all([MAM.sb.rpc("db_deal", { p_deal_number: no }),
+        MAM.sb.rpc("db_sector_comparison", { p_deal: no }).then(r => r.error ? null : r.data, () => null)]);
       if (error) { R.innerHTML = '<div class="rep-loading">Could not load deal ' + esc(no) + ": " + esc(error.message) + "</div>"; return; }
-      res = data; cache[no] = res;
+      res = data; if (res) res.cmp = cmp; cache[no] = res;
     }
     if (!res || !res.deal) { R.innerHTML = '<div class="rep-loading">There is no report for deal ' + esc(no) + ' on this site. <a href="#search">Search the DataBase</a>.</div>'; return; }
     if ((location.hash.split("/")[1] || "") !== no) return;     // the user moved on while it loaded

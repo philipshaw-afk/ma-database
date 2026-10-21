@@ -137,3 +137,26 @@ dialog.mdl.wide{width:min(900px,calc(100vw - 32px))}
 .dl-ft .mdl-a{margin-left:auto}
 .dlbar .seg{flex-wrap:wrap}
 @media (max-width:640px){.mdl-b{padding:20px 18px}.dlbar .seg span{padding:6px 9px}}
+
+/* deal report · sector comparison (Valuation card) */
+.nrep .sh.scmp-h{margin-top:20px}
+.nrep table.t.scmp th.rr{text-align:right}
+.nrep table.t.scmp td{padding-top:6px;padding-bottom:6px}
+.nrep table.t.scmp td .scl{display:block}
+.nrep table.t.scmp td small{display:block;font-size:11px;line-height:1.3;color:var(--t3);margin-top:1px}
+.nrep table.t.scmp td small a{color:inherit;font-weight:600}
+.nrep table.t.scmp td small a:hover{color:var(--a)}
+.nrep table.t.scmp td.n{white-space:nowrap}
+.nrep table.t.scmp td.scv{font-weight:650;color:var(--ink)}
+.nrep table.t.scmp tr.pre td{background:rgba(79,110,247,.05)}
+.nrep table.t.scmp tr.pre .scl{font-weight:650;color:var(--ink)}
+.nrep .scmp .scbc{width:70px;padding-left:6px;padding-right:6px}
+.nrep .scb{position:relative;display:block;height:8px;border-radius:4px;background:rgba(15,23,41,.05)}
+.nrep .scb::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:rgba(15,23,41,.3)}
+.nrep .scb i{position:absolute;top:0;bottom:0;background:rgba(79,110,247,.55)}
+.nrep .scb i.pos{left:50%;border-radius:0 4px 4px 0}
+.nrep .scb i.neg{right:50%;border-radius:4px 0 0 4px}
+.nrep .scb.hl i{background:var(--a)}
+.vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (max-width:520px){.nrep .scmp .scbc{display:none}.nrep table.t.scmp th{white-space:normal;line-height:1.25;vertical-align:bottom;padding-left:6px;padding-right:6px}.nrep table.t.scmp td:first-child{width:44%}.nrep table.t.scmp td{font-size:12.5px;padding-left:6px;padding-right:6px}.nrep table.t.scmp td small{font-size:10.5px}}
+@media print{.nrep .sh.scmp-h{margin-top:10px}.nrep table.t.scmp td small{font-size:7.5px}.nrep .scmp .scbc{width:40px}}

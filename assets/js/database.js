@@ -28,7 +28,7 @@
       attitude: F(f, "Deal Attitude") || "", consideration: F(f, "Consideration type") || "",
       activities: F(f, "Target Activities") || "", stock_index: F(f, "pdf_stock_index") || "",
       currency: x.cur || "", equity_value: eq, enterprise_value: ev,
-      premium: num(F(f, "Pre-bid speculation premium")), ev_ebitda: num(F(f, "Enterprise Value/EBITDA")), ev_sales: num(F(f, "Enterprise Value/Sales")),
+      premium: (v => v != null && v <= -100 ? null : v)(num(F(f, "Pre-bid speculation premium"))),   // -100 = not available ev_ebitda: num(F(f, "Enterprise Value/EBITDA")), ev_sales: num(F(f, "Enterprise Value/Sales")),
       pe: num(F(f, "Price/Earnings")), pb: num(F(f, "Price/Book")),
       sales: num(F(f, "Turnover (Sales)")), ebitda: num(F(f, "EBITDA")), net_income: num(F(f, "Net Income (Earnings)")),
       adv_bl: cleanAdv(F(f, "Bidder's Legal Advisor")), adv_bf: cleanAdv(F(f, "Bidder's Financial Advisor")),
