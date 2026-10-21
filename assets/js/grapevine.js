@@ -8,13 +8,15 @@
   let timer = null;
   const short = t => String(t || "").replace(/\s*\(.*$/, "").trim();
   const STAGE = s => { const k = String(s || "").toLowerCase(); return /agreed|signed|binding/.test(k) ? "ok" : /exclusive|bids|talks|offer/.test(k) ? "hot" : /sale|review|process/.test(k) ? "sale" : "rum"; };
-  const day = d => { if (!d) return ""; const t = MAM.isoToTs(d), n = new Date(), today = +new Date(n.getFullYear(), n.getMonth(), n.getDate()); const diff = Math.round((today - t) / 864e5); return diff === 0 ? "Today" : diff === 1 ? "Yesterday" : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
+  /* "today" as Grapevine counts it: the update's date in London */
+  const londonDay = (offset = 0) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() - offset * 864e5));
+  const dayLabel = d => d === londonDay(0) ? "Today" : d === londonDay(1) ? "Yesterday" : new Date(MAM.isoToTs(d)).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const live = $("#gvbar .gv-live");
 
   function fill(items) {
     const one = items.map(u => {
       const s = u.gv_situations || {};
       return '<a class="gv-item" href="' + GV + "#sit-" + encodeURIComponent(s.slug || "") + '" target="_blank" rel="noopener" title="' + esc((s.target || "") + " — " + (u.headline || "")) + '">' +
-        '<span class="gv-d">' + esc(day(u.update_date)) + "</span>" +
         (u.stage ? '<span class="gv-st gv-' + STAGE(u.stage) + '">' + esc(u.stage) + "</span>" : "") +
         "<b>" + esc(short(s.target) || s.title || "") + "</b>" +
         '<span class="gv-h">' + esc(u.headline || "") + "</span></a>";
@@ -27,18 +29,27 @@
       track.classList.toggle("go", w > tick.clientWidth * 0.6);
     });
   }
-  function teaser() {
+  function none() {
     track.classList.remove("go");
+    live.innerHTML = "<i></i>Today";
+    track.innerHTML = '<div class="gv-run gv-teaser">No recent Grapevine news. <a href="' + GV + '#today" target="_blank" rel="noopener">Open Grapevine</a></div>';
+  }
+  function teaser() {
+    track.classList.remove("go"); live.innerHTML = "<i></i>Grapevine";
     track.innerHTML = '<div class="gv-run gv-teaser">European M&amp;A situations before they are announced, updated daily. <a href="' + GV + '" target="_blank" rel="noopener">Find out more</a></div>';
   }
   async function load() {
     const [{ data: can }, res] = await Promise.all([
       sb.rpc("gv_can_read"),
-      sb.from("gv_updates").select("update_date,stage,headline,created_at,gv_situations(slug,title,target)").order("update_date", { ascending: false }).order("created_at", { ascending: false }).limit(25)
+      /* today's news; if there is none yet, the most recent day that has some (normally yesterday) */
+      sb.from("gv_updates").select("update_date,stage,headline,created_at,gv_situations(slug,title,target)").lte("update_date", londonDay(0)).order("update_date", { ascending: false }).order("created_at", { ascending: false }).limit(150)
     ]);
     bar.hidden = false;
-    if (can !== true || res.error || !res.data || !res.data.length) { teaser(); return; }
-    fill(res.data);
+    if (can !== true || res.error) { teaser(); return; }
+    if (!res.data || !res.data.length) { none(); return; }
+    const d = res.data[0].update_date;
+    live.innerHTML = "<i></i>" + esc(dayLabel(d));
+    fill(res.data.filter(u => u.update_date === d));
   }
   MAM.hooks.signedIn = () => { load().catch(e => { console.warn("Grapevine ticker:", e); bar.hidden = true; }); clearInterval(timer); timer = setInterval(() => load().catch(() => {}), 5 * 60 * 1000); };
   MAM.hooks.signedOut = () => { clearInterval(timer); bar.hidden = true; track.innerHTML = ""; };
