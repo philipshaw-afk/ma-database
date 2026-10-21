@@ -1,0 +1,85 @@
+/* M&A DataBase website: additions on top of the integrated-site design (base.css) */
+[hidden]{display:none!important}
+button.av{border:0;cursor:pointer;padding:0}
+button.av:hover{box-shadow:0 0 0 3px rgba(79,110,247,.18)}
+.toast.err{background:#7A1D0C}
+
+/* sign-in */
+.li-msg{font-size:12.5px;line-height:1.45;padding:9px 12px;border-radius:8px;background:rgba(15,23,41,.04);color:var(--t2)}
+.li-msg.err{background:rgba(220,62,27,.08);color:#A3300F}
+.li-msg.ok{background:rgba(13,155,106,.09);color:#0B6E4C}
+.li-alt{display:flex;gap:8px;justify-content:center;align-items:center;font-size:12px;color:var(--t3);flex-wrap:wrap}
+.linkbtn{border:0;background:none;padding:0;font:600 12px var(--sans);color:var(--a);cursor:pointer}
+.linkbtn:hover{text-decoration:underline}
+.boot{min-height:calc(100vh - 300px);display:flex;gap:12px;align-items:center;justify-content:center;color:var(--t3);font-size:13.5px}
+.spin{display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid rgba(79,110,247,.2);border-top-color:var(--a);animation:spin .8s linear infinite;vertical-align:-3px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* home */
+.lk-wrap{position:relative}
+.lk-sug{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;list-style:none;margin:0;padding:6px;background:#fff;border:1px solid var(--b);border-radius:12px;box-shadow:0 14px 40px rgba(15,23,41,.14);max-height:360px;overflow:auto}
+.lk-sug li{display:grid;gap:2px;padding:8px 10px;border-radius:8px;cursor:pointer}
+.lk-sug li b{font-size:13px;color:var(--ink)}
+.lk-sug li span{font-size:11.5px;color:var(--t3)}
+.lk-sug li:hover,.lk-sug li.on{background:var(--al)}
+.lk-sug li.none{cursor:default;color:var(--t3);font-size:12.5px}
+.ib.off{opacity:.35;cursor:default}
+
+/* search */
+.presets{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--b);background:rgba(79,110,247,.03)}
+.presets .lab{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-right:4px}
+.ws-st{font-size:12px;color:var(--t2);min-height:16px}
+#r-view{margin-left:4px}
+.tfr .r-more{margin-left:auto}
+
+/* deal report */
+.rtabs.fmt .rep-nav{font-size:12.5px;font-weight:650;color:var(--ink)}
+.nrep .dline .dv{margin-left:10px;color:var(--t2)}
+.nrep .dline .dv em{margin-right:3px}
+.nrep .synopsis{padding:12px 18px 4px;font-size:14px;line-height:1.7;color:var(--body);text-align:justify;hyphens:auto}
+.nrep .prose pre.ntxt{font:500 12.5px/1.55 var(--mono);background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 16px;overflow-x:auto;margin:14px 0 18px;white-space:pre}
+.nrep .prose .ntab td:first-child{white-space:normal}
+.nrep .pmx{display:grid;gap:6px}
+.nrep .pmr{display:grid;grid-template-columns:130px minmax(0,1fr) 64px;align-items:center;gap:10px;font-size:12.5px;color:var(--t2)}
+.nrep .pmr .pmt{height:9px;border-radius:5px;background:rgba(15,23,41,.05);overflow:hidden}
+.nrep .pmr .pmt i{display:block;height:100%;border-radius:5px;background:rgba(79,110,247,.55)}
+.nrep .pmr .pmt i.neg{background:rgba(220,62,27,.5)}
+.nrep .pmr .pmv{font:650 12.5px var(--mono);color:var(--ink);text-align:right}
+.nrep .pmr.hl .pml{font-weight:700;color:var(--ink)}
+.nrep .pmr.hl .pmt i{background:var(--a)}
+.nrep .rep-loading a{font-weight:600}
+.nrep .t td.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* offer statistics loading message */
+.os-loadmsg{padding:40px 20px;text-align:center;color:var(--t2);font-size:13.5px}
+
+/* admin */
+.adm-add{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 18px;align-items:end}
+.adm-add .adm-go{justify-items:start}
+@media (max-width:900px){.adm-add{grid-template-columns:1fr}}
+.adm-result{margin:0 16px 16px;padding:12px 14px;border-radius:10px;background:rgba(13,155,106,.08);font-size:13px;line-height:1.6;color:var(--body)}
+.adm-result.err{background:rgba(220,62,27,.08);color:#A3300F}
+.adm-result code.pw,.adm-result code{font:700 13px var(--mono);background:#fff;border:1px solid var(--b);border-radius:6px;padding:2px 7px;color:var(--ink)}
+.adm-acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.imp-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.imp-row label.btn{cursor:pointer}
+.imp-preview{font-size:13px;line-height:1.7;padding:10px 14px;border-radius:10px;background:rgba(79,110,247,.05);color:var(--body)}
+.imp-preview span{white-space:nowrap}
+.imp-preview .err{color:#A3300F;white-space:normal}
+.imp-log{font-size:12.5px;color:var(--t2)}
+
+/* dialog */
+dialog.mdl{border:0;border-radius:16px;padding:0;width:min(420px,calc(100vw - 32px));box-shadow:0 30px 80px rgba(15,23,41,.3)}
+dialog.mdl::backdrop{background:rgba(15,23,41,.35);backdrop-filter:blur(2px)}
+.mdl-b{display:grid;gap:14px;padding:24px 26px}
+.mdl-b h2{font-size:20px;font-weight:800;letter-spacing:-.03em;margin:0}
+.mdl-b p{margin:0}
+.mdl-a{display:flex;justify-content:flex-end;gap:8px}
+
+/* footer note */
+footer.site .base .pdb-h{font-size:11px}
+.nrep .pmr .pml{white-space:nowrap}
+.ib .pdfi{font:800 8.5px/1 var(--mono);letter-spacing:.02em;color:#C2410C}
+.ib:hover .pdfi{color:inherit}
+.btn:disabled,.btn[disabled]{opacity:.45;cursor:not-allowed;box-shadow:none}
+#p-1 .frow{align-items:start}

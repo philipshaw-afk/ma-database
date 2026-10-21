@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M&amp;A Monitor DataBase</title>
+<meta name="description" content="M&amp;A Monitor DataBase and ARB-Insight: European M&amp;A deal reports, pending public offers and UK public offer statistics.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://awpbhcyhfgsznmrqiddv.supabase.co wss://awpbhcyhfgsznmrqiddv.supabase.co; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<link rel="icon" type="image/png" href="assets/img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@500;700;800&family=Source+Serif+4:ital,opsz,wght@1,8..60,700&display=swap">
+<link rel="stylesheet" href="assets/css/base.css?v=1">
+<link rel="stylesheet" href="assets/css/site.css?v=1">
+</head>
+<body>
+<div class="mesh" aria-hidden="true"></div>
+
+<header class="hdr">
+  <a class="logo-t" href="#lookup"><img class="hlogo" src="assets/img/logo.png" alt="">M&amp;A Monitor</a>
+  <ul class="nav" id="gnav">
+    <li><a href="#lookup" data-g="db">M&amp;A DataBase</a></li>
+    <li><a href="#arb-stats" data-g="arb">ARB-Insight</a></li>
+    <li class="sep" aria-hidden="true"></li>
+    <li><a href="https://arbinsight.co.uk/" target="_blank" rel="noopener"><span class="live"></span>UK Tracker</a></li>
+    <li><a href="https://europe.arbinsight.co.uk/" target="_blank" rel="noopener"><span class="live"></span>European Tracker</a></li>
+    <li class="sep admin-only" aria-hidden="true" hidden></li>
+    <li class="admin-only" hidden><a href="#users" data-g="users">Users</a></li>
+  </ul>
+  <div class="hdr-r">
+    <div class="user" id="user-chip" hidden><button type="button" class="av" id="btn-account" title="Account">··</button><span class="em" id="user-email"></span><a class="lo" href="#" id="btn-logout">logout</a></div>
+  </div>
+</header>
+
+<nav class="subnav" id="sub-db" hidden aria-label="M&amp;A DataBase">
+  <div class="wrap">
+    <span class="prod" data-logo="db" data-size="xs"></span>
+    <a class="t" href="#lookup" data-s="lookup">Home</a>
+    <a class="t" href="#search" data-s="search">Search Form</a>
+    <a class="t" href="#results" data-s="results">Search Results</a>
+    <a class="t" href="#deal" data-s="deal">Deal report</a>
+    <a class="t" href="#calendar" data-s="calendar">Calendar</a>
+  </div>
+</nav>
+<nav class="subnav" id="sub-arb" hidden aria-label="ARB-Insight">
+  <div class="wrap">
+    <span class="prod" data-logo="arb" data-size="xs"></span>
+    <a class="t" href="#arb-stats" data-s="arb-stats">Offer Statistics</a>
+    <a class="t" href="#arb-rev" data-s="arb-rev">Offer Revisions</a>
+  </div>
+</nav>
+
+<main id="main">
+
+<!-- ================= LOGIN ================= -->
+<section class="pg wrap" data-page="login" hidden>
+  <div class="login">
+    <form class="lcard" id="login-form" novalidate>
+      <div class="hd"><div class="st0">you are not logged in</div><h1>Log in</h1></div>
+      <div class="bd">
+        <div class="prods lprods"><span data-logo="db" data-size="xs"></span><span data-logo="arb" data-size="xs"></span></div>
+        <div class="fld"><label for="li-email">Email</label><input class="in" id="li-email" type="email" autocomplete="username" placeholder="name@company.com" required></div>
+        <div class="fld"><label for="li-pass">Password</label><input class="in" id="li-pass" type="password" autocomplete="current-password" placeholder="Password"></div>
+        <label class="chip" style="justify-self:start"><input type="checkbox" id="li-rem"> Remember Me?</label>
+        <div class="warn" id="li-warn" hidden><strong>Warning:</strong> Select this option only if you are the only person who uses this computer.</div>
+        <div class="li-msg" id="li-msg" role="status" aria-live="polite" hidden></div>
+        <button class="btn lg" type="submit" id="li-go">Login</button>
+        <div class="li-alt"><button type="button" class="linkbtn" id="li-link">Email me a sign-in link</button><span aria-hidden="true">·</span><button type="button" class="linkbtn" id="li-forgot">Forgotten your password?</button></div>
+      </div>
+      <div class="ft"><span>Access is by invitation. Contact M&amp;A Monitor for a login.</span><a href="https://www.ma-monitor.co.uk/" target="_blank" rel="noopener">ma-monitor.co.uk</a></div>
+    </form>
+  </div>
+</section>
+
+<!-- ================= SIGNED IN BUT NO ACCESS ================= -->
+<section class="pg wrap" data-page="noaccess" hidden>
+  <div class="login">
+    <div class="lcard">
+      <div class="hd"><div class="st0">signed in as <b id="na-email"></b></div><h1>No access yet</h1></div>
+      <div class="bd"><p style="margin:0;color:var(--t2)">This login has not been given access to the M&amp;A DataBase. If you think it should have, please contact M&amp;A Monitor.</p><button class="btn ghost" type="button" id="na-out">Sign out</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LOADING ================= -->
+<section class="pg wrap" data-page="loading" hidden>
+  <div class="boot"><span class="spin" aria-hidden="true"></span><span id="boot-msg">Loading the DataBase…</span></div>
+</section>
+
+<div class="apage" id="app" hidden>
+
+<!-- ============ DATABASE HOME (LOOKUP) ============ -->
+<section class="screen" data-screen="lookup" hidden>
+  <div class="phd">
+    <div>
+      <h1>Lookup Deals</h1>
+      <p>Simple ways to find a deal. Alternatively, you can perform a more <a href="#search">complex search</a>.</p>
+    </div>
+    <div class="odo" title="Deal reports on this site"><div class="d" id="home-odo"></div><div class="l">deal<br>reports</div></div>
+  </div>
+  <div class="stack">
+    <div id="dash-box"></div>
+    <div class="card">
+      <div class="card-hd"><span class="card-t">If you know the deal number or target, enter it here.</span></div>
+      <form class="look" id="lk-form" autocomplete="off">
+        <div class="fld lk-wrap"><label for="lk-q">Deal Number or Target Name</label><input class="in" id="lk-q" type="text" placeholder="e.g. 0044244 or Spire Healthcare" role="combobox" aria-expanded="false" aria-controls="lk-sug" aria-autocomplete="list"><ul class="lk-sug" id="lk-sug" role="listbox" hidden></ul></div>
+        <button class="btn" type="submit">View</button>
+      </form>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-hd"><span class="card-t">Deals recently viewed by you</span><span class="cnt" id="cnt-viewed">0</span></div><div class="tscr"><table id="t-viewed"></table></div></div>
+      <div class="card"><div class="card-hd"><span class="card-t">Reports recently downloaded by you</span><span class="cnt" id="cnt-downloaded">0</span></div><div class="tscr"><table id="t-downloaded"></table></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-t">Recently added deals</span>
+        <div class="fld" style="grid-auto-flow:column;align-items:center;gap:8px"><label for="lk-sector">Choose a sector</label><select class="sel" id="lk-sector" style="width:240px"></select></div>
+      </div>
+      <div class="tscr"><table id="t-added"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ OFFER CALENDAR ============ -->
+<section class="screen" data-screen="calendar" hidden>
+  <div class="phd"><div><h1>Offer calendar</h1><p>Key dates for the pending public offers on the DataBase &#8212; shareholder meetings, acceptance periods, regulatory approvals and expected completion &#8212; plus PUSU deadlines for possible offers on the UK and European Trackers. Click a target to open its deal report.</p></div></div>
+  <div class="card" id="cal-box"></div>
+</section>
+
+<!-- ============ SEARCH FORM ============ -->
+<section class="screen" data-screen="search" hidden>
+  <div class="phd">
+    <div class="steps">
+      <span class="step on"><i>1</i>Search Form</span>
+      <a class="step" href="#results"><i>2</i>Search Results</a>
+    </div>
+    <div class="odo"><div class="d" id="s-odo"></div><div class="l">deals<br>found</div></div>
+  </div>
+
+  <div class="card" id="sform">
+    <div class="presets"><span class="lab">Quick searches</span><button type="button" class="btn ghost sm" data-preset="pending-public">Pending public offers</button><button type="button" class="btn ghost sm" data-preset="pending-private">Pending private deals</button><button type="button" class="btn ghost sm" data-preset="uk-public">UK &amp; Irish public offers</button><button type="button" class="btn ghost sm" data-preset="recent">Announced in the last 30 days</button></div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" aria-selected="true" data-p="p-1">Parties</button>
+      <button type="button" role="tab" aria-selected="false" data-p="p-2">Deal Parameters</button>
+      <button type="button" role="tab" aria-selected="false" data-p="p-3">Deal Value</button>
+      <button type="button" role="tab" aria-selected="false" data-p="p-4">Financials</button>
+      <button type="button" role="tab" aria-selected="false" data-p="p-5">Word Search</button>
+      <button type="button" role="tab" aria-selected="false" data-p="p-6">Offer Status<span class="pdb-new">NEW</span></button>
+      <button type="button" role="tab" aria-selected="false" data-p="p-7">Country Specific<span class="pdb-new">NEW</span></button>
+    </div>
+
+    <!-- Parties -->
+    <div class="card-bd" id="p-1" role="tabpanel">
+      <div class="stack">
+        <div class="party">
+          <div class="party-t">Target</div>
+          <div class="frow3">
+            <div class="stack" style="gap:12px">
+              <div class="fld"><label for="tu-name">Name</label><input class="in" id="tu-name" type="text"></div>
+              <div class="fld"><label for="tu-act">Activities</label><input class="in" id="tu-act" type="text" placeholder="e.g. hospitals"></div>
+            </div>
+            <div class="fld"><label for="tu-ctry">Country</label><select class="sel ctry" id="tu-ctry" multiple></select></div>
+            <div class="fld"><label for="tu-sect">Sectors</label><select class="sel sect" id="tu-sect" multiple></select></div>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="party bd">
+            <div class="party-t">Bidder</div>
+            <div class="frow">
+              <div class="fld"><label for="bd-name">Name <span class="pdb-h">(incl. ultimate bidder and bidding vehicle)</span></label><input class="in" id="bd-name" type="text"></div>
+              <div class="fld"><label for="bd-ctry">Country</label><select class="sel ctry" id="bd-ctry" multiple></select></div>
+            </div>
+          </div>
+          <div class="party dv">
+            <div class="party-t">Divestor</div>
+            <div class="frow">
+              <div class="fld"><label for="dv-name">Name</label><input class="in" id="dv-name" type="text"></div>
+              <div class="fld"><label for="dv-ctry">Country</label><select class="sel ctry" id="dv-ctry" multiple></select></div>
+            </div>
+          </div>
+        </div>
+        <p class="pdb-h" style="margin:0">Hold Ctrl (Cmd on a Mac) to pick more than one country or sector.</p>
+      </div>
+    </div>
+
+    <!-- Deal Parameters -->
+    <div class="card-bd" id="p-2" role="tabpanel" hidden>
+      <div class="stack" style="gap:20px">
+        <div class="frow4">
+          <div class="fld"><label for="dp-type">Type of Deal</label><select class="sel" id="dp-type"><option value="">-- Any --</option></select></div>
+          <div class="fld"><label for="dp-la">Legal Advisors</label><input class="in" id="dp-la" type="text"></div>
+          <div class="fld"><label for="dp-fa">Financial Advisors</label><input class="in" id="dp-fa" type="text"></div>
+          <div class="fld"><span class="lab">Advisor to</span><div class="seg"><label><input type="radio" name="adv" value="b"><span>Bidder</span></label><label><input type="radio" name="adv" value="t"><span>Target/Divestor</span></label><label><input type="radio" name="adv" value="" checked><span>Both</span></label></div></div>
+        </div>
+        <div class="frow4">
+          <div class="fld"><label for="dp-ann">Date Announced</label><div class="rng"><input class="in" id="dp-ann" placeholder="from dd/mm/yyyy"><span>to</span><input class="in" id="dp-ann-b" placeholder="to" aria-label="Date announced to"></div></div>
+          <div class="fld"><label for="dp-add">Date Added to the DataBase</label><div class="rng"><input class="in" id="dp-add" placeholder="from dd/mm/yyyy"><span>to</span><input class="in" id="dp-add-b" placeholder="to" aria-label="Date added to"></div></div>
+          <div class="fld"><span class="lab">Public / private</span><div class="seg"><label><input type="radio" name="pub" value="y"><span>Public</span></label><label><input type="radio" name="pub" value="n"><span>Private</span></label><label><input type="radio" name="pub" value="" checked><span>Either</span></label></div></div>
+          <div class="fld"><span class="lab">Cross Border</span><div class="seg"><label><input type="radio" name="xb" value="Yes"><span>Yes</span></label><label><input type="radio" name="xb" value="No"><span>No</span></label><label><input type="radio" name="xb" value="" checked><span>Either</span></label></div></div>
+        </div>
+        <div class="grid2">
+          <div><div class="grpt">Deal Status</div><div class="chips" id="dp-status" data-chips="Pending|Proposed|Completed|Failed"></div></div>
+          <div><div class="grpt">Attitude</div><div class="chips" id="dp-att" data-chips="Friendly|Hostile|White Knight|Initially Hostile|Neutral"></div></div>
+          <div><div class="grpt">Consideration</div><div class="chips" id="dp-cons" data-chips="Cash|Shares|Cash and shares|Other / mixed"></div></div>
+          <div><div class="grpt">Region of target</div><div class="chips" id="dp-region" data-chips="UK &amp; Ireland|France &amp; Italy|Other Western Europe|Central &amp; Eastern Europe|Outside Europe"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deal Value -->
+    <div class="card-bd" id="p-3" role="tabpanel" hidden>
+      <div class="stack" style="gap:20px">
+        <div class="seg"><label><input type="radio" name="dvc" value="GBP" checked><span>£</span></label><label><input type="radio" name="dvc" value="USD"><span>US$</span></label><label><input type="radio" name="dvc" value="EUR"><span>Euro</span></label></div>
+        <div class="frow4">
+          <div class="fld"><label for="dv-eq">Total Equity Value / deal value (millions)</label><div class="rng"><input class="in" id="dv-eq" placeholder="low"><span>to</span><input class="in" id="dv-eq-b" placeholder="high" aria-label="Equity value high"></div></div>
+          <div class="fld"><label for="dv-ev">Enterprise Value (millions)</label><div class="rng"><input class="in" id="dv-ev" placeholder="low"><span>to</span><input class="in" id="dv-ev-b" placeholder="high" aria-label="Enterprise value high"></div></div>
+          <div class="fld"><label for="dv-prem">Pre-bid speculation premium (%)</label><div class="rng"><input class="in" id="dv-prem" placeholder="low"><span>to</span><input class="in" id="dv-prem-b" placeholder="high" aria-label="Premium high"></div></div>
+          <div class="fld"><label for="dv-bid">% of capital bid for</label><div class="rng"><input class="in" id="dv-bid" placeholder="low"><span>to</span><input class="in" id="dv-bid-b" placeholder="high" aria-label="% bid for high"></div></div>
+        </div>
+        <p class="pdb-h" style="margin:0">Values in other currencies are converted at approximate exchange rates for searching; reports show the figures as recorded. "% of capital bid for" is held for pending public offers.</p>
+      </div>
+    </div>
+
+    <!-- Financials -->
+    <div class="card-bd" id="p-4" role="tabpanel" hidden>
+      <div class="stack" style="gap:20px">
+        <div class="seg"><label><input type="radio" name="fnc" value="GBP" checked><span>£</span></label><label><input type="radio" name="fnc" value="USD"><span>US$</span></label><label><input type="radio" name="fnc" value="EUR"><span>Euro</span></label></div>
+        <div class="frow4">
+          <div class="fld"><label for="fn-sales">Turnover (millions)</label><div class="rng"><input class="in" id="fn-sales" placeholder="low"><span>to</span><input class="in" id="fn-sales-b" placeholder="high" aria-label="Turnover high"></div></div>
+          <div class="fld"><label for="fn-ebitda">EBITDA (millions)</label><div class="rng"><input class="in" id="fn-ebitda" placeholder="low"><span>to</span><input class="in" id="fn-ebitda-b" placeholder="high" aria-label="EBITDA high"></div></div>
+          <div class="fld"><label for="fn-ni">Net income (millions)</label><div class="rng"><input class="in" id="fn-ni" placeholder="low"><span>to</span><input class="in" id="fn-ni-b" placeholder="high" aria-label="Net income high"></div></div>
+          <div class="fld"><label for="fn-evs">Enterprise Value/Sales</label><div class="rng"><input class="in" id="fn-evs" placeholder="low"><span>to</span><input class="in" id="fn-evs-b" placeholder="high" aria-label="EV/Sales high"></div></div>
+          <div class="fld"><label for="fn-evebitda">Enterprise Value/EBITDA</label><div class="rng"><input class="in" id="fn-evebitda" placeholder="low"><span>to</span><input class="in" id="fn-evebitda-b" placeholder="high" aria-label="EV/EBITDA high"></div></div>
+          <div class="fld"><label for="fn-pe">Price/Earnings</label><div class="rng"><input class="in" id="fn-pe" placeholder="low"><span>to</span><input class="in" id="fn-pe-b" placeholder="high" aria-label="P/E high"></div></div>
+          <div class="fld"><label for="fn-pb">Price/Book</label><div class="rng"><input class="in" id="fn-pb" placeholder="low"><span>to</span><input class="in" id="fn-pb-b" placeholder="high" aria-label="P/B high"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Word Search -->
+    <div class="card-bd" id="p-5" role="tabpanel" hidden>
+      <div class="stack" style="gap:16px;max-width:760px">
+        <div class="tips"><b>Search within the report commentary</b> (overview, profiles of the parties, background and payment details). Search is not case sensitive and matches word forms: <code>acquisition</code> also finds <code>acquisitions</code>. It is not necessary to use all the boxes.</div>
+        <div class="grpt" style="margin:0">Find deals that have…</div>
+        <div class="fld"><label for="ws-all">all these words</label><input class="in" id="ws-all" type="text"></div>
+        <div class="fld"><label for="ws-exact">this exact wording or phrase</label><input class="in" id="ws-exact" type="text"></div>
+        <div class="fld"><label for="ws-or1">one or more of these words</label><div class="rng" style="grid-template-columns:1fr auto 1fr auto 1fr"><input class="in" id="ws-or1" type="text"><span>OR</span><input class="in" id="ws-or2" type="text" aria-label="or"><span>OR</span><input class="in" id="ws-or3" type="text" aria-label="or"></div></div>
+        <div class="grpt" style="margin:0">But don't show deals that have…</div>
+        <div class="fld"><label for="ws-not">any of these unwanted words</label><input class="in" id="ws-not" type="text"></div>
+        <div class="ws-st" id="ws-st" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <!-- Offer Status -->
+    <div class="card-bd" id="p-6" role="tabpanel" hidden>
+      <div class="stack" style="gap:20px">
+        <div class="pdb-note"><b>New</b> Offer-status fields, populated for the <span data-pdb-n>—</span> pending Western European and US public offers in the pending-offers database (offer status as at <span data-pdb-asof>—</span>). Setting any of these limits the results to those offers.</div>
+        <div class="grid2">
+          <div><div class="grpt">Offer structure</div><div class="chips" id="pdb-struct" data-chips="Scheme of arrangement|Takeover/tender offer|US one-step merger|US tender offer (two-step)|Statutory/cross-border merger|Other"></div></div>
+          <div><div class="grpt">Current status</div><div class="chips" id="pdb-cstat" data-chips="Pending|Unconditional - awaiting settlement|Completed|Lapsed|Withdrawn|Superseded"></div></div>
+        </div>
+        <div><div class="grpt">Offer regime <span class="pdb-h">(where the target is listed / whose takeover rules apply)</span></div><div class="chips" id="pdb-regime" data-chips="United Kingdom|Ireland|France|Italy|Spain|Germany|Netherlands|Belgium|United States|Austria|Switzerland|Norway|Sweden|Finland|Poland|Greece|Malta"></div></div>
+        <div class="grid2">
+          <div><div class="grpt">Competitive status</div><div class="chips" id="pdb-comp" data-chips="Single Bidder|Original Bidder Won|Later Bidder Won"></div></div>
+          <div><div class="grpt">Regulatory status</div><div class="pdb-subg">Phase 2 referral</div><div class="chips" id="pdb-rref" data-chips="No referral|Conditions imposed|Referred and failed|Referred and cleared|Pending"></div><div class="pdb-subg">Clearance status</div><div class="chips" id="pdb-rstat" data-chips="No regulatory clearance required|Awaiting regulatory clearance|All regulatory clearances obtained"></div></div>
+        </div>
+        <div>
+          <div class="grpt">1) % the bidder has agreed to acquire <span class="pdb-h">(stake + share purchase agreements + irrevocables / letters of intent)</span></div>
+          <div class="frow4">
+            <div class="fld"><label for="pdb-ex">% existing stake</label><div class="rng"><input class="in" id="pdb-ex" placeholder="low"><span>to</span><input class="in" id="pdb-ex-b" placeholder="high" aria-label="% existing stake high"></div></div>
+            <div class="fld"><label for="pdb-spa">% SPA / block agreed</label><div class="rng"><input class="in" id="pdb-spa" placeholder="low"><span>to</span><input class="in" id="pdb-spa-b" placeholder="high" aria-label="% SPA high"></div></div>
+            <div class="fld"><label for="pdb-irr">% irrevocables / LOIs / support</label><div class="rng"><input class="in" id="pdb-irr" placeholder="low"><span>to</span><input class="in" id="pdb-irr-b" placeholder="high" aria-label="% irrevocables high"></div></div>
+            <div class="fld"><label for="pdb-tot">% agreed in total</label><div class="rng"><input class="in" id="pdb-tot" placeholder="low"><span>to</span><input class="in" id="pdb-tot-b" placeholder="high" aria-label="% agreed in total high"></div></div>
+          </div>
+        </div>
+        <div>
+          <div class="grpt">2) Acceptance threshold · 6) Acceptances</div>
+          <div class="frow4">
+            <div class="fld"><label for="pdb-thr">Acceptance threshold / vote required (%)</label><div class="rng"><input class="in" id="pdb-thr" placeholder="low"><span>to</span><input class="in" id="pdb-thr-b" placeholder="high" aria-label="Acceptance threshold high"></div></div>
+            <div class="fld"><span class="lab">No minimum acceptance threshold</span><div class="seg"><label><input type="radio" name="pdb-nothr" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-nothr" value="n"><span>No</span></label><label><input type="radio" name="pdb-nothr" value="" checked><span>Either</span></label></div></div>
+            <div class="fld"><label for="pdb-acc">Acceptances (%)</label><div class="rng"><input class="in" id="pdb-acc" placeholder="low"><span>to</span><input class="in" id="pdb-acc-b" placeholder="high" aria-label="Acceptances high"></div></div>
+            <div class="fld"><span class="lab">Acceptance level published</span><div class="seg"><label><input type="radio" name="pdb-hasacc" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-hasacc" value="n"><span>No</span></label><label><input type="radio" name="pdb-hasacc" value="" checked><span>Either</span></label></div></div>
+          </div>
+        </div>
+        <div>
+          <div class="grpt">3) Offer period <span class="pdb-h">(takeover / tender offers)</span> · 4) Shareholder meeting <span class="pdb-h">(schemes, US and statutory mergers)</span></div>
+          <div class="frow4">
+            <div class="fld"><label for="pdb-ops">Offer period start</label><div class="rng"><input class="in" id="pdb-ops" placeholder="from dd/mm/yyyy"><span>to</span><input class="in" id="pdb-ops-b" placeholder="to" aria-label="Offer period start to"></div></div>
+            <div class="fld"><label for="pdb-ope">Offer period end (current)</label><div class="rng"><input class="in" id="pdb-ope" placeholder="from dd/mm/yyyy"><span>to</span><input class="in" id="pdb-ope-b" placeholder="to" aria-label="Offer period end to"></div></div>
+            <div class="fld"><label for="pdb-mtg">Shareholder meeting date</label><div class="rng"><input class="in" id="pdb-mtg" placeholder="from dd/mm/yyyy"><span>to</span><input class="in" id="pdb-mtg-b" placeholder="to" aria-label="Shareholder meeting to"></div></div>
+            <div class="fld"><span class="lab">Key date announced</span><div class="seg"><label><input type="radio" name="pdb-hask" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-hask" value="n"><span>No</span></label><label><input type="radio" name="pdb-hask" value="" checked><span>Either</span></label></div></div>
+          </div>
+        </div>
+        <div class="frow4">
+          <div class="fld"><span class="lab">7) Offer period extended</span><div class="seg"><label><input type="radio" name="pdb-ext" value="Yes"><span>Yes</span></label><label><input type="radio" name="pdb-ext" value="No"><span>No</span></label><label><input type="radio" name="pdb-ext" value="" checked><span>Either</span></label></div></div>
+          <div class="fld"><span class="lab">8) Acceptance threshold lowered</span><div class="seg"><label><input type="radio" name="pdb-low" value="Yes"><span>Yes</span></label><label><input type="radio" name="pdb-low" value="No"><span>No</span></label><label><input type="radio" name="pdb-low" value="" checked><span>Either</span></label></div></div>
+          <div class="fld"><span class="lab">9) Squeeze-out</span><div class="seg"><label><input type="radio" name="pdb-sq" value="Yes"><span>Yes</span></label><label><input type="radio" name="pdb-sq" value="No"><span>No</span></label><label><input type="radio" name="pdb-sq" value="" checked><span>Either</span></label></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Country Specific -->
+    <div class="card-bd" id="p-7" role="tabpanel" hidden>
+      <div class="stack" style="gap:16px">
+        <div class="pdb-note"><b>New</b> Country-specific offer fields. Setting any field in a box limits results to offers under that country's regime.</div>
+        <div class="pdb-cgrid">
+          <div class="party pdb-c" data-reg="France">
+            <div class="party-t">France <span class="pdb-h">AMF</span></div>
+            <div class="pdb-yn"><span class="lab">AMF approved</span><div class="seg"><label><input type="radio" name="pdb-fr-amf" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-fr-amf" value="n"><span>No</span></label><label><input type="radio" name="pdb-fr-amf" value="" checked><span>Either</span></label></div></div>
+            <div class="fld"><label for="pdb-fr-amfd">AMF approval date</label><div class="rng"><input class="in" id="pdb-fr-amfd" placeholder="from"><span>to</span><input class="in" id="pdb-fr-amfd-b" placeholder="to" aria-label="AMF approval to"></div></div>
+            <div class="fld"><label for="pdb-fr-up">% acquired upfront</label><div class="rng"><input class="in" id="pdb-fr-up" placeholder="low"><span>to</span><input class="in" id="pdb-fr-up-b" placeholder="high" aria-label="% acquired upfront high"></div></div>
+            <div class="pdb-yn"><span class="lab">Upfront purchase completed</span><div class="seg"><label><input type="radio" name="pdb-fr-upc" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-fr-upc" value="n"><span>No</span></label><label><input type="radio" name="pdb-fr-upc" value="" checked><span>Either</span></label></div></div>
+            <div><span class="lab">Independent expert's conclusion</span><div class="chips" id="pdb-fr-exp" data-chips="Fair|Not fair|Not yet issued"></div></div>
+          </div>
+          <div class="party pdb-c" data-reg="Italy">
+            <div class="party-t">Italy <span class="pdb-h">CONSOB</span></div>
+            <div><span class="lab">Golden power authorisation</span><div class="chips" id="pdb-it-gp" data-chips="Pending|Granted|Granted with prescriptions|Not required"></div></div>
+            <div class="pdb-yn"><span class="lab">Consob approved</span><div class="seg"><label><input type="radio" name="pdb-it-cs" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-it-cs" value="n"><span>No</span></label><label><input type="radio" name="pdb-it-cs" value="" checked><span>Either</span></label></div></div>
+            <div class="fld"><label for="pdb-it-csd">Consob approval date</label><div class="rng"><input class="in" id="pdb-it-csd" placeholder="from"><span>to</span><input class="in" id="pdb-it-csd-b" placeholder="to" aria-label="Consob approval to"></div></div>
+          </div>
+          <div class="party pdb-c" data-reg="Germany">
+            <div class="party-t">Germany <span class="pdb-h">BaFin</span></div>
+            <div class="pdb-yn"><span class="lab">BaFin approved</span><div class="seg"><label><input type="radio" name="pdb-de-bf" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-de-bf" value="n"><span>No</span></label><label><input type="radio" name="pdb-de-bf" value="" checked><span>Either</span></label></div></div>
+            <div class="fld"><label for="pdb-de-bfd">BaFin approval date</label><div class="rng"><input class="in" id="pdb-de-bfd" placeholder="from"><span>to</span><input class="in" id="pdb-de-bfd-b" placeholder="to" aria-label="BaFin approval to"></div></div>
+            <div class="pdb-yn"><span class="lab">Offer period closed</span><div class="seg"><label><input type="radio" name="pdb-de-cl" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-de-cl" value="n"><span>No</span></label><label><input type="radio" name="pdb-de-cl" value="" checked><span>Either</span></label></div></div>
+            <p class="pdb-h" style="margin:0">German offers close before regulatory approval is sought; settlement follows the approvals.</p>
+          </div>
+          <div class="party pdb-c" data-reg="Spain">
+            <div class="party-t">Spain <span class="pdb-h">CNMV</span></div>
+            <div class="pdb-yn"><span class="lab">CNMV approved</span><div class="seg"><label><input type="radio" name="pdb-es-cn" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-es-cn" value="n"><span>No</span></label><label><input type="radio" name="pdb-es-cn" value="" checked><span>Either</span></label></div></div>
+            <div class="fld"><label for="pdb-es-cnd">CNMV approval date</label><div class="rng"><input class="in" id="pdb-es-cnd" placeholder="from"><span>to</span><input class="in" id="pdb-es-cnd-b" placeholder="to" aria-label="CNMV approval to"></div></div>
+          </div>
+          <div class="party pdb-c" data-reg="Netherlands">
+            <div class="party-t">Netherlands <span class="pdb-h">AFM</span></div>
+            <div class="pdb-yn"><span class="lab">AFM approved</span><div class="seg"><label><input type="radio" name="pdb-nl-afm" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-nl-afm" value="n"><span>No</span></label><label><input type="radio" name="pdb-nl-afm" value="" checked><span>Either</span></label></div></div>
+            <div class="fld"><label for="pdb-nl-afmd">AFM approval date</label><div class="rng"><input class="in" id="pdb-nl-afmd" placeholder="from"><span>to</span><input class="in" id="pdb-nl-afmd-b" placeholder="to" aria-label="AFM approval to"></div></div>
+          </div>
+          <div class="party pdb-c" data-reg="Belgium">
+            <div class="party-t">Belgium <span class="pdb-h">FSMA</span></div>
+            <div class="pdb-yn"><span class="lab">FSMA approved</span><div class="seg"><label><input type="radio" name="pdb-be-fs" value="y"><span>Yes</span></label><label><input type="radio" name="pdb-be-fs" value="n"><span>No</span></label><label><input type="radio" name="pdb-be-fs" value="" checked><span>Either</span></label></div></div>
+            <div class="fld"><label for="pdb-be-fsd">FSMA approval date</label><div class="rng"><input class="in" id="pdb-be-fsd" placeholder="from"><span>to</span><input class="in" id="pdb-be-fsd-b" placeholder="to" aria-label="FSMA approval to"></div></div>
+          </div>
+          <div class="party pdb-c pdb-us" data-reg="United States">
+            <div class="party-t">United States <span class="pdb-h">SEC</span></div>
+            <div><span class="lab">US public type</span><div class="chips" id="pdb-us-type" data-chips="Merger|Tender offer"></div></div>
+            <div class="fld"><label for="pdb-us-bf">Break fee (US$m)</label><div class="rng"><input class="in" id="pdb-us-bf" placeholder="low"><span>to</span><input class="in" id="pdb-us-bf-b" placeholder="high" aria-label="Break fee high"></div></div>
+            <div class="fld"><label for="pdb-us-rbf">Reverse break fee (US$m)</label><div class="rng"><input class="in" id="pdb-us-rbf" placeholder="low"><span>to</span><input class="in" id="pdb-us-rbf-b" placeholder="high" aria-label="Reverse break fee high"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actbar">
+      <div class="l"><button type="button" class="btn ghost" id="s-new">New Search</button><span class="pdb-h" id="s-crit-n"></span></div>
+      <a class="btn" href="#results" id="s-go">Search <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESULTS ============ -->
+<section class="screen" data-screen="results" hidden>
+  <div class="phd">
+    <div class="steps">
+      <a class="step done" href="#search"><i>1</i>Search Form</a>
+      <span class="step on"><i>2</i>Search Results</span>
+    </div>
+    <div class="odo"><div class="d" id="r-odo"></div><div class="l">deals<br>found</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><a class="btn ghost sm" href="#search">← Back to Search Criteria</a><div class="seg" id="r-view" role="radiogroup" aria-label="Columns"><label><input type="radio" name="rview" value="deal" checked><span>Deal summary</span></label><label><input type="radio" name="rview" value="status"><span>Offer status</span></label></div></div>
+      <div class="dlbar">
+        <div class="seg"><label><input type="radio" name="dlt" value="deal" checked><span>Deal summary download</span></label><label><input type="radio" name="dlt" value="status"><span>Offer status download</span></label></div>
+        <button type="button" class="btn sm" id="r-dl"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>Download</button>
+      </div>
+    </div>
+    <div class="pdb-crit" id="pdb-crit" hidden></div>
+    <div class="tscr"><table id="t-results"></table></div>
+    <div class="tfr"><span>Rows <b id="pdb-rows">0</b> · click a row to open the full deal report</span><span class="r-more"><button type="button" class="btn ghost sm" id="r-more" hidden>Show 100 more</button></span></div>
+  </div>
+</section>
+
+<!-- ============ DEAL REPORT ============ -->
+<section class="screen" data-screen="deal" hidden>
+  <div class="rtabs fmt"><a class="back" href="#results">&larr; Search results</a><span class="lab">Deal report</span><span class="rep-nav" id="rep-nav"></span><span class="sp"></span></div>
+  <div class="nrep" id="rep-new"><div class="rep-loading">Choose a deal from the <a href="#search">search</a> or the <a href="#lookup">home page</a>.</div></div>
+</section>
+
+<!-- ============ ARB-INSIGHT: OFFER STATISTICS ============ -->
+<section class="screen" data-screen="arb-stats" data-also="arb-rev" hidden>
+  <div class="phd"><div class="rev-only"><div class="eyebrow">Offer Statistics · UK</div><h1>Offer Revisions</h1><p>How much bidders raise their price between their first and last offer: the share of offers raised, the size of the increase, the change in premium, the days between and how many bids turned from hostile to friendly. Start from formal offers or from possible offers.</p></div><div class="ov-only"><div class="eyebrow">Offer Statistics</div><h1>UK Public Offer Statistics</h1><p>A snapshot of every UK and Irish public offer on the M&amp;A Monitor DataBase since 2008. Narrow the criteria and every figure recalculates instantly.</p></div>
+    <div class="related"><a class="rl" href="https://arbinsight.co.uk/" target="_blank" rel="noopener"><i class="icA">UK</i>UK Tracker</a></div></div>
+  <div class="card os-loadmsg" id="os-load" hidden></div>
+  <div class="os-grid">
+    <aside class="card os-side" id="os-side" aria-label="Criteria">
+      <div class="card-hd"><span class="card-t">Criteria</span><span style="display:flex;gap:12px;align-items:center"><button type="button" class="os-tog" id="os-tog" aria-expanded="true" aria-controls="os-fb">Hide criteria</button><a href="#arb-stats" id="os-reset" style="font-size:11.5px;font-weight:600">Reset</a></span></div>
+      <div class="os-fb" id="os-fb">
+        <div class="os-g rev-only"><div class="grpt">Offers included</div><div class="os-hint">Offer revisions draws on firm and possible offers: the choice at the top of the page decides which bids count.</div></div>
+        <div class="os-g ov-only">
+          <div class="grpt">Offers included</div>
+          <div class="seg" role="radiogroup" aria-label="Offers included"><label><input type="radio" name="os-uni" value="firm" checked><span>Firm offers</span></label><label><input type="radio" name="os-uni" value="all"><span>+ Possible offers</span></label></div>
+          <div class="os-hint" id="os-uni-h">Rule 2.7 firm offers only. Add possible offers that never went firm to see PUSU conversion.</div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Attitude <span class="os-pre" id="os-att-pre"><button type="button" data-p="all">All</button><button type="button" data-p="fr">Friendly</button><button type="button" data-p="ho">Hostile</button></span></div>
+          <div class="chips" id="os-att"></div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Competitive deals</div>
+          <div class="seg" role="radiogroup" aria-label="Competitive deals"><label><input type="radio" name="os-cp" value="all" checked><span>All</span></label><label><input type="radio" name="os-cp" value="y"><span>Competitive</span></label><label><input type="radio" name="os-cp" value="n"><span>Uncontested</span></label></div>
+          <div class="os-hint">Competitive = a rival bidder emerged for the same target, following the DataBase's competitive status (the Competing column in the table).</div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Price revised</div>
+          <div class="seg" role="radiogroup" aria-label="Price revised"><label><input type="radio" name="os-rv" value="all" checked><span>All</span></label><label><input type="radio" name="os-rv" value="y"><span>Revised</span></label><label><input type="radio" name="os-rv" value="n"><span>Unchanged</span></label></div>
+          <div class="os-hint">Whether the bidder's price moved between its first proposal and its last offer. Bids with no price drop out once this is set.</div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Cross-border</div>
+          <div class="seg" role="radiogroup" aria-label="Cross-border"><label><input type="radio" name="os-xb" value="all" checked><span>All</span></label><label><input type="radio" name="os-xb" value="y"><span>Cross-border</span></label><label><input type="radio" name="os-xb" value="n"><span>Domestic</span></label></div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Equity value <small id="os-ev-o"></small></div>
+          <div class="os-dr" id="os-ev"><div class="tr"><div class="fl"></div></div><input type="range" aria-label="Minimum equity value"><input type="range" aria-label="Maximum equity value"></div>
+          <div class="os-ticks" id="os-ev-t"></div>
+          <div class="os-hint" id="os-ev-h">Implied total equity value. Offers with no disclosed value drop out once the range is narrowed.</div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Year <small id="os-yr-o"></small></div>
+          <div class="os-dr" id="os-yr"><div class="tr"><div class="fl"></div></div><input type="range" aria-label="From year"><input type="range" aria-label="To year"></div>
+          <div class="os-ticks" id="os-yr-t"></div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Target market</div>
+          <div class="chips" id="os-mkt"></div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Structure</div>
+          <div class="seg" role="radiogroup" aria-label="Structure"><label><input type="radio" name="os-sch" value="all" checked><span>All</span></label><label><input type="radio" name="os-sch" value="sch"><span>Scheme</span></label><label><input type="radio" name="os-sch" value="off"><span>Offer</span></label></div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Bidder</div>
+          <div class="seg" role="radiogroup" aria-label="Bidder"><label><input type="radio" name="os-mbo" value="all" checked><span>All</span></label><label><input type="radio" name="os-mbo" value="mbo"><span>MBO / MBI</span></label><label><input type="radio" name="os-mbo" value="oth"><span>Other</span></label></div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Consideration</div>
+          <div class="seg" role="radiogroup" aria-label="Consideration"><label><input type="radio" name="os-cn" value="all" checked><span>All</span></label><label><input type="radio" name="os-cn" value="c"><span>Cash</span></label><label><input type="radio" name="os-cn" value="s"><span>Incl. shares</span></label></div>
+        </div>
+        <div class="os-g">
+          <div class="grpt">Target country</div>
+          <div class="seg" role="radiogroup" aria-label="Target country"><label><input type="radio" name="os-c" value="all" checked><span>All</span></label><label><input type="radio" name="os-c" value="UK"><span>UK</span></label><label><input type="radio" name="os-c" value="IE"><span>Ireland</span></label></div>
+        </div>
+        <div class="os-g">
+          <div class="fld"><label for="os-sec">Target sector</label><select class="sel" id="os-sec"></select></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="stack os-main">
+      <div class="rtabs os-vt" aria-label="Offer Statistics views"><a href="#arb-stats" data-v="ov">Overview</a><a href="#arb-rev" data-v="rev">Offer revisions <i>NEW</i></a><span class="sp"></span></div>
+      <div class="orv stack" id="orv">
+        <div class="os-bar"><div class="l"><span id="orv-count"></span><span class="os-af" id="orv-af"></span></div><span class="muted" style="font-size:11px" id="orv-asat"></span></div>
+        <div class="card">
+          <div class="card-hd"><span class="card-t">What to compare</span><span class="card-s" id="orv-mode-s"></span></div>
+          <div class="orv-pk">
+            <div class="orv-modes" role="radiogroup" aria-label="Offers to compare" id="orv-modes">
+              <label class="orv-mode"><input type="radio" name="orv-mode" value="f" checked><span class="mt">Formal offers</span><span class="md">1st formal offer → last formal offer</span><span class="mn" id="orv-mn-f"></span></label>
+              <label class="orv-mode"><input type="radio" name="orv-mode" value="p"><span class="mt">Possible offers</span><span class="md">1st indicative proposal → last proposal, or the last formal offer if the bid went firm</span><span class="mn" id="orv-mn-p"></span></label>
+              <label class="orv-mode"><input type="radio" name="orv-mode" value="c"><span class="mt">Custom stages</span><span class="md">Pick any stages, for example 2nd → 3rd formal</span><span class="mn" id="orv-mn-c"></span></label>
+            </div>
+            <div class="orv-sub" data-m="p">
+              <span class="orv-rl">Compare the 1st proposal with<small>Where the bid ends up</small></span>
+              <div class="seg" role="radiogroup" aria-label="End point" id="orv-end"><label><input type="radio" name="orv-end" value="out" checked><span>Final outcome</span></label><label><input type="radio" name="orv-end" value="iL"><span>Last proposal</span></label><label><input type="radio" name="orv-end" value="fL"><span>Last formal offer</span></label></div>
+              <div class="os-hint" id="orv-end-h"></div>
+            </div>
+            <div class="orv-sub" data-m="c">
+              <div class="orv-pre" id="orv-pre"><span class="lab">Quick picks</span>
+                <button type="button" data-p="f1 f2">1st → 2nd formal</button>
+                <button type="button" data-p="f2 f3">2nd → 3rd formal</button>
+                <button type="button" data-p="f1 f2 fL">1st → 2nd → last formal</button>
+                <button type="button" data-p="i1 i2">1st → 2nd proposal</button>
+                <button type="button" data-p="i1 f1">1st proposal → 1st formal</button>
+                <button type="button" data-p="i1 iL fL">1st → last proposal → last formal</button>
+              </div>
+              <div class="orv-row"><span class="orv-rl">Indicative proposals<small>Rule 2.4 possible offers</small></span><div class="chips" id="orv-ci" role="group" aria-label="Indicative proposals"></div></div>
+              <div class="orv-row"><span class="orv-rl">Formal offers<small>Rule 2.7 firm offers</small></span><div class="chips" id="orv-cf" role="group" aria-label="Formal offers"></div></div>
+              <div class="os-hint">Tick two or more. The number on each box is how many bids got that far. With three or more ticked, the figures compare the first and last ticked stage and the step-by-step table shows each pair.</div>
+            </div>
+            <div class="orv-opts">
+              <div class="fld"><label for="orv-ref">Premium against</label><select class="sel" id="orv-ref">
+                <option value="0">Undisturbed price (pre-bid speculation)</option>
+                <option value="1">Price 1 day before announcement</option>
+                <option value="2">30-day average before announcement</option>
+              </select><div class="os-hint" id="orv-ref-h" hidden>Only the undisturbed price is held for proposals that never went firm.</div></div>
+              <div class="fld"><label>Chart and table show</label><div class="seg" role="radiogroup" aria-label="Offers shown in the chart and table"><label><input type="radio" name="orv-scope" value="up" checked><span>Raised offers</span></label><label><input type="radio" name="orv-scope" value="all"><span>All offers</span></label></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="orv-fun" id="orv-fun" aria-live="polite"></div>
+        <div id="orv-warn"></div>
+        <div class="os-kpis orv-kpis" id="orv-kpis"></div>
+        <div class="card" id="orv-steps-card" hidden><div class="card-hd"><span class="card-t">Step by step</span><span class="card-s">Each pair of ticked stages, then first to last</span></div><div id="orv-steps"></div></div>
+        <div class="os-two orv-two">
+          <div class="card">
+            <div class="card-hd"><span class="card-t" id="orv-hist-t">Size of the increase</span><span style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="card-s" id="orv-hist-s"></span><span class="seg" role="radiogroup" aria-label="Histogram measure"><label><input type="radio" name="orv-hist" value="px" checked><span>Price</span></label><label><input type="radio" name="orv-hist" value="pr"><span>Premium</span></label></span></span></div>
+            <div class="os-chart orv-ch" id="orv-hist"></div>
+          </div>
+          <div class="card">
+            <div class="card-hd"><span class="card-t">Deal attitude, first to last</span><span class="card-s" id="orv-att-s"></span></div>
+            <div id="orv-att"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hd"><span class="card-t">By year</span><span class="card-s" id="orv-yr-s"></span></div>
+          <div class="orv-yr" id="orv-yr"></div>
+        </div>
+        <div class="card">
+          <div class="card-hd"><span class="card-t">Offers compared</span><span class="card-s">Price per share, with the premium and date beneath · click a column to sort</span></div>
+          <div class="tscr"><table class="os-tbl orv-tbl" id="orv-tbl"></table></div>
+          <div class="tfr"><span id="orv-tcount"></span><button type="button" class="btn ghost sm" id="orv-more">Show 15 more</button></div>
+          <div class="orv-note" id="orv-note"></div>
+        </div>
+      </div>
+      <div class="os-bar"><div class="l"><span id="os-count"></span><span class="os-af" id="os-af"></span></div><span class="muted" style="font-size:11px" id="os-asat"></span></div>
+      <div id="os-warn"></div>
+      <div class="os-kpis" id="os-kpis" aria-live="polite"></div>
+      <div class="os-two">
+        <div class="card">
+          <div class="card-hd"><span class="card-t">Competing bids</span><span class="card-s" id="os-comp-s"></span></div>
+          <div id="os-comp"></div>
+        </div>
+        <div class="card">
+          <div class="card-hd"><span class="card-t">Offer increases</span><span class="card-s">Final vs initial firm offer per share</span></div>
+          <div id="os-inc"></div>
+        </div>
+      </div>
+      <div class="os-two">
+        <div class="card">
+          <div class="card-hd"><span class="card-t">Offers by year and outcome</span><div class="lgd" id="os-yr-lgd"></div></div>
+          <div class="os-chart" id="os-yc"></div>
+        </div>
+        <div class="card">
+          <div class="card-hd"><span class="card-t">Pre-bid speculation premium distribution</span><span class="card-s" id="os-hc-s"></span></div>
+          <div class="os-chart" id="os-hc"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><span class="card-t">Matching offers</span><span class="card-s">Click a column to sort</span></div>
+        <div class="tscr"><table class="os-tbl" id="os-tbl"></table></div>
+        <div class="tfr"><span id="os-tcount"></span><button type="button" class="btn ghost sm" id="os-more">Show 25 more</button></div>
+      </div>
+      <details class="card os-notes">
+        <summary>How these figures are calculated</summary>
+        <dl>
+          <dt>Source</dt><dd>M&amp;A Monitor DataBase bid premia tables for UK and Irish public targets, 2008 to date. Each record is one bidder's approach to one target.</dd>
+          <dt>Firm / possible offers</dt><dd>Firm offers are records with a status of Completed, Failed or Pending. Possible offers are approaches announced under the Code (named or unnamed offeror) where that bidder never made a firm offer. Years use the firm offer announcement date, or the start of the offer period for possible offers.</dd>
+          <dt>Speculation premium</dt><dd>Offer value against the undisturbed share price before pre-bid speculation. Possible offers count only where an indicative price was put forward.</dd>
+          <dt>Offer period</dt><dd>Days from addition to removal from the Takeover Panel disclosure table, counted once per offer period however many bidders were involved. Live offer periods are excluded.</dd>
+          <dt>Firm offer to completion</dt><dd>Days from the firm offer announcement to completion, for completed offers. The lapse figure uses failed offers.</dd>
+          <dt>PUSU</dt><dd>Share of offers with a put-up-or-shut-up deadline, among records where this is captured (from 2011). Extensions are measured against offers with a PUSU. Conversion to a firm offer needs possible offers switched on; live PUSUs are excluded.</dd>
+          <dt>Failed</dt><dd>Failed ÷ (completed + failed) firm offers. Pending offers are excluded.</dd>
+          <dt>Hostile</dt><dd>Hostile and initially hostile offers ÷ offers with a recorded attitude.</dd>
+          <dt>Competing bids</dt><dd>Bid situations (target and speculation date) where more than one bidder emerged. The winner comes from the DataBase's competitive status; "neither" means every bidder failed. Unresolved contests are excluded from the win rates.</dd>
+          <dt>Competitive deals</dt><dd>The Competitive deals criterion uses the same flag as the Competing column: offers the DataBase marks as part of a contested bid situation. With it set to Competitive, the Competing situations figure is 100% by definition, and the Competing bids panel shows who won those contests.</dd>
+          <dt>Increases</dt><dd>A firm offer counts as increased when its final value per target share (cash plus shares) is above its initial value. The average increase is the mean uplift on increased offers only.</dd>
+          <dt>Price revised</dt><dd>A bid counts as revised when any of its indicative proposals or formal offers differs from its first price. Bids with no price, or with prices more than 3x apart (probable data-entry errors), drop out when this is set.</dd>
+          <dt>Offer revisions</dt><dd>The Offer revisions tab compares each bid's price and premium at its first and last offer: for formal offers, the 1st and last Rule 2.7 offer; for possible offers, the 1st indicative proposal and either the last formal offer (if the bid went firm) or the last indicative proposal. Custom stages compares any ticked stages (1st to 5th and last proposal, 1st to 5th and last formal offer) for bids that reached all of them. An offer counts as raised when its last price is above its first; prices more than 3x apart are left out as probable data errors.</dd>
+          <dt>Other criteria</dt><dd>Scheme = deal type includes a scheme of arrangement; Offer excludes possible offers, whose structure is not yet known. MBO / MBI follows the DataBase deal type. "Incl. shares" covers any share element or share alternative.</dd>
+        </dl>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ USERS (admins) ============ -->
+<section class="screen" data-screen="users" hidden>
+  <div class="phd"><div><div class="eyebrow">Admin</div><h1>Users &amp; data</h1><p>Give clients a login, reset passwords, see who is using the site, and load the offer-status and offer-statistics data.</p></div></div>
+  <div class="stack">
+    <div class="card">
+      <div class="card-hd"><span class="card-t">Add a user</span><span class="card-s">They log in with their email and the password shown here (they can change it under their initials, top right).</span></div>
+      <form class="card-bd adm-add" id="adm-add" autocomplete="off">
+        <div class="fld"><label for="adm-email">Email</label><input class="in" id="adm-email" type="email" required></div>
+        <div class="fld"><label for="adm-name">Name</label><input class="in" id="adm-name" type="text"></div>
+        <div class="fld"><label for="adm-org">Organisation</label><input class="in" id="adm-org" type="text"></div>
+        <div class="fld"><span class="lab">Role</span><div class="seg"><label><input type="radio" name="adm-role" value="client" checked><span>Client</span></label><label><input type="radio" name="adm-role" value="admin"><span>Admin</span></label></div></div>
+        <div class="fld"><label for="adm-pass">Password <span class="pdb-h">(leave blank to generate one)</span></label><input class="in" id="adm-pass" type="text" minlength="10" placeholder="at least 10 characters"></div>
+        <div class="fld adm-go"><button class="btn" type="submit" id="adm-add-btn">Add user</button></div>
+      </form>
+      <div class="adm-result" id="adm-result" hidden></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-t">Website users</span><span class="cnt" id="adm-n">0</span></div>
+      <div class="tscr"><table id="adm-members"></table></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-hd"><span class="card-t">M&amp;A Monitor team</span><span class="card-s">DIANA logins can always use this site</span></div><div class="tscr"><table id="adm-team"></table></div></div>
+      <div class="card"><div class="card-hd"><span class="card-t">Recent activity</span><span class="card-s">Reports viewed and downloaded</span></div><div class="tscr" style="max-height:420px"><table id="adm-activity"></table></div></div>
+    </div>
+    <div class="card" id="imp-card">
+      <div class="card-hd"><span class="card-t">Data import</span><span class="card-s" id="imp-state"></span></div>
+      <div class="card-bd stack" style="gap:14px">
+        <p style="margin:0;color:var(--t2);max-width:900px">Deal reports and their PDFs come straight from DIANA&#8217;s Supabase tables. The <b>offer status</b> fields for pending public offers, the <b>offer calendar</b>, and the ARB-Insight <b>UK offer statistics</b> and <b>offer price histories</b> are loaded here from the integrated site mockup file (<code>mamonitorintegratedsite_*.html</code> in Claude docs). Choosing the file replaces those four datasets; internal QA notes are left out.</p>
+        <div class="imp-row"><label class="btn ghost" for="imp-file">Choose mockup file…</label><input type="file" id="imp-file" accept=".html,.htm,text/html" hidden><span class="pdb-h" id="imp-fname">No file chosen</span></div>
+        <div class="imp-preview" id="imp-preview" hidden></div>
+        <div class="imp-row"><button type="button" class="btn" id="imp-go" disabled>Load into the DataBase</button><span class="imp-log" id="imp-log" aria-live="polite"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div><!-- /#app -->
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div><div class="logo-t" style="margin-bottom:8px">M&amp;A Monitor</div><p>Informed. In depth. Immediate.</p></div>
+    <div><h5>Products</h5><nav><a href="#lookup">M&amp;A DataBase</a><a href="#arb-stats">ARB-Insight</a></nav></div>
+    <div><h5>Live trackers</h5><nav><a href="https://arbinsight.co.uk/" target="_blank" rel="noopener">UK Tracker</a><a href="https://europe.arbinsight.co.uk/" target="_blank" rel="noopener">European Tracker</a></nav></div>
+    <div><h5>Company</h5><nav><a href="https://www.ma-monitor.co.uk/" target="_blank" rel="noopener">ma-monitor.co.uk</a><a href="tel:+442089449700">+44 (0)20 8944 9700</a></nav></div>
+    <div class="base"><span>&copy;2026 M&amp;A Monitor Limited</span><span class="pdb-h">Data provided under licence to the named user. Not for redistribution.</span></div>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-t"></span></div>
+
+<dialog class="mdl" id="dlg-account" aria-labelledby="acc-t">
+  <form method="dialog" class="mdl-b" id="acc-form">
+    <h2 id="acc-t">Your account</h2>
+    <p class="pdb-h" id="acc-who"></p>
+    <div class="fld"><label for="acc-p1">New password</label><input class="in" id="acc-p1" type="password" autocomplete="new-password" minlength="10"></div>
+    <div class="fld"><label for="acc-p2">Repeat new password</label><input class="in" id="acc-p2" type="password" autocomplete="new-password" minlength="10"></div>
+    <div class="li-msg" id="acc-msg" hidden></div>
+    <div class="mdl-a"><button type="button" class="btn ghost" id="acc-close">Close</button><button type="button" class="btn" id="acc-save">Set password</button></div>
+  </form>
+</dialog>
+
+<script src="assets/js/vendor/supabase-2.45.4.js"></script>
+<script src="assets/js/config.js?v=1"></script>
+<script src="assets/js/core.js?v=1"></script>
+<script src="assets/js/calendar.js?v=1"></script>
+<script src="assets/js/stats.js?v=1"></script>
+<script src="assets/js/revisions.js?v=1"></script>
+<script src="assets/js/report.js?v=1"></script>
+<script src="assets/js/database.js?v=1"></script>
+<script src="assets/js/admin.js?v=1"></script>
+<script src="assets/js/main.js?v=1"></script>
+</body>
+</html>
