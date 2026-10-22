@@ -10,7 +10,7 @@ A login-only client site built from the integrated-site mockup (`mamonitorintegr
 | **Search Form / Search Results** | Parties, deal parameters, values, financials, word search of the report text, offer-status and country-specific fields; CSV downloads | `db_deal_index()` (filtered in the browser), `db_word_search()` (full-text search on the server) |
 | **Deal report** | New-format report: KPIs, offer status, transaction, key dates, valuation, advisers, financials, commentary, payment details, all fields; PDF download | `db_deal()`; PDFs from the private `deal-files` bucket (`exports/…`) via short-lived signed links |
 | **Calendar** | Shareholder meetings, acceptance periods, regulatory dates, PUSU deadlines | `db_offer_events` |
-| **ARB-Insight › Offer Statistics / Offer Revisions** | UK & Irish public offers since 2008 with live filters | `db_uk_offer_stats()` |
+| **ARB-Insight › Offer Statistics / Offer Revisions** | UK & Irish public offers since 2008 with live filters; tick boxes on the deal list (unticked deals leave every figure), Exclude outliers (Tukey 1.5×IQR per measure), word search of the write-ups, listed share element slider and domestic/overseas paper (shown once consideration terms are loaded), Excel workbook of every box and the offers behind it | `db_uk_offer_stats()`, `db_word_search()` |
 | **Users** (admins only) | Add client logins, reset passwords, enable/disable, usage; data import | `db_admin_members()`, edge function `db-admin`, `db_admin_import()` |
 
 Deal reports are DIANA's own `deals` rows (reported, LIVE, with an exported PDF), so new reports appear on the site as soon as DIANA has them. The offer-status fields, calendar and UK offer statistics are loaded by an admin on the Users page from the mockup file.

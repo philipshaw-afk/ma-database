@@ -526,6 +526,7 @@
     s.onload = () => res(window.ExcelJS); s.onerror = () => { xlLib = null; rej(new Error("could not load the Excel writer")); };
     document.head.appendChild(s);
   }));
+  MAM.loadExcel = loadExcel;   // also used by the Offer Statistics download
   const isoDate = v => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || "")); return m ? new Date(Date.UTC(+m[1], m[2] - 1, +m[3])) : null; };
   const FMT = { m: "0.000", x: "0.00", p: "0.00" };
   MAM.xlsx = async function (L, cols, rows, name) {

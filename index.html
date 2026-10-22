@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@500;700;800&family=Source+Serif+4:ital,opsz,wght@1,8..60,700&display=swap">
 <link rel="stylesheet" href="assets/css/base.css?v=1">
-<link rel="stylesheet" href="assets/css/site.css?v=5">
+<link rel="stylesheet" href="assets/css/site.css?v=6">
 </head>
 <body>
 <div class="mesh" aria-hidden="true"></div>
@@ -409,6 +409,10 @@
           <div class="seg" role="radiogroup" aria-label="Offers included"><label><input type="radio" name="os-uni" value="firm" checked><span>Firm offers</span></label><label><input type="radio" name="os-uni" value="all"><span>+ Possible offers</span></label></div>
           <div class="os-hint" id="os-uni-h">Rule 2.7 firm offers only. Add possible offers that never went firm to see PUSU conversion.</div>
         </div>
+        <div class="os-g ov-only">
+          <label class="os-ck"><input type="checkbox" id="os-out"> Exclude outliers</label>
+          <div class="os-hint">Leaves extreme values out of the averages and medians (premium, offer period, time to completion, size of increase): anything more than 1.5 times the interquartile range beyond the middle half of the offers selected. Struck-through figures in the list are the ones left out.</div>
+        </div>
         <div class="os-g">
           <div class="grpt">Attitude <span class="os-pre" id="os-att-pre"><button type="button" data-p="all">All</button><button type="button" data-p="fr">Friendly</button><button type="button" data-p="ho">Hostile</button></span></div>
           <div class="chips" id="os-att"></div>
@@ -453,6 +457,14 @@
         <div class="os-g">
           <div class="grpt">Consideration</div>
           <div class="seg" role="radiogroup" aria-label="Consideration"><label><input type="radio" name="os-cn" value="all" checked><span>All</span></label><label><input type="radio" name="os-cn" value="c"><span>Cash</span></label><label><input type="radio" name="os-cn" value="s"><span>Incl. shares</span></label></div>
+          <div class="os-shr" id="os-shr" hidden>
+            <div class="grpt">Listed share element <small id="os-sp-o"></small></div>
+            <div class="os-dr" id="os-sp"><div class="tr"><div class="fl"></div></div><input type="range" aria-label="Minimum listed share element"><input type="range" aria-label="Maximum listed share element"></div>
+            <div class="os-ticks" id="os-sp-t"></div>
+            <div class="grpt">Paper</div>
+            <div class="seg" role="radiogroup" aria-label="Where the bidder's shares are listed"><label><input type="radio" name="os-pp" value="all" checked><span>All</span></label><label><input type="radio" name="os-pp" value="d"><span>Domestic</span></label><label><input type="radio" name="os-pp" value="o"><span>Overseas</span></label></div>
+            <div class="os-hint" id="os-sp-h"></div>
+          </div>
         </div>
         <div class="os-g">
           <div class="grpt">Target country</div>
@@ -460,6 +472,17 @@
         </div>
         <div class="os-g">
           <div class="fld"><label for="os-sec">Target sector</label><select class="sel" id="os-sec"></select></div>
+        </div>
+        <div class="os-g os-wsg">
+          <div class="grpt">Word search of the write-ups</div>
+          <form class="os-ws" id="os-ws-f" autocomplete="off">
+            <input class="in" id="os-ws" type="search" placeholder="e.g. formal sale process" aria-label="Words to find in the deal write-ups">
+            <div class="seg" role="radiogroup" aria-label="How to match the words"><label><input type="radio" name="os-wsm" value="ph" checked><span>Exact phrase</span></label><label><input type="radio" name="os-wsm" value="all"><span>All words</span></label><label><input type="radio" name="os-wsm" value="any"><span>Any word</span></label></div>
+            <input class="in" id="os-ws-not" type="search" placeholder="Leave out write-ups mentioning…" aria-label="Leave out write-ups mentioning these words">
+            <div class="os-ws-r"><button class="btn sm" type="submit" id="os-ws-go">Search write-ups</button><button class="btn ghost sm" type="button" id="os-ws-clr" hidden>Clear</button></div>
+          </form>
+          <div class="os-ws-st" id="os-ws-st" aria-live="polite"></div>
+          <div class="os-hint" id="os-ws-h"></div>
         </div>
       </div>
     </aside>
@@ -529,7 +552,7 @@
           <div class="orv-note" id="orv-note"></div>
         </div>
       </div>
-      <div class="os-bar"><div class="l"><span id="os-count"></span><span class="os-af" id="os-af"></span></div><span class="muted" style="font-size:11px" id="os-asat"></span></div>
+      <div class="os-bar"><div class="l"><span id="os-count"></span><span class="os-af" id="os-af"></span></div><div class="os-bar-r"><span class="muted" style="font-size:11px" id="os-asat"></span><button type="button" class="btn ghost sm os-xl" data-xl title="Download every box's figures and the list of offers behind them as an Excel workbook"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m0 0 3-3m-3 3L5 7M3 12.5h10"/></svg>Excel</button></div></div>
       <div id="os-warn"></div>
       <div class="os-kpis" id="os-kpis" aria-live="polite"></div>
       <div class="os-two">
@@ -553,7 +576,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-hd"><span class="card-t">Matching offers</span><span class="card-s">Click a column to sort</span></div>
+        <div class="card-hd"><span class="card-t">Matching offers</span><span style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="card-s" id="os-tbl-s">Untick a deal to leave it out of every figure · click a column to sort</span><button type="button" class="btn ghost sm os-xl" data-xl title="Download every box's figures and the list of offers behind them as an Excel workbook"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m0 0 3-3m-3 3L5 7M3 12.5h10"/></svg>Excel</button></span></div>
         <div class="tscr"><table class="os-tbl" id="os-tbl"></table></div>
         <div class="tfr"><span id="os-tcount"></span><button type="button" class="btn ghost sm" id="os-more">Show 25 more</button></div>
       </div>
@@ -573,6 +596,11 @@
           <dt>Increases</dt><dd>A firm offer counts as increased when its final value per target share (cash plus shares) is above its initial value. The average increase is the mean uplift on increased offers only.</dd>
           <dt>Price revised</dt><dd>A bid counts as revised when any of its indicative proposals or formal offers differs from its first price. Bids with no price, or with prices more than 3x apart (probable data-entry errors), drop out when this is set.</dd>
           <dt>Offer revisions</dt><dd>The Offer revisions tab compares each bid's price and premium at its first and last offer: for formal offers, the 1st and last Rule 2.7 offer; for possible offers, the 1st indicative proposal and either the last formal offer (if the bid went firm) or the last indicative proposal. Custom stages compares any ticked stages (1st to 5th and last proposal, 1st to 5th and last formal offer) for bids that reached all of them. An offer counts as raised when its last price is above its first; prices more than 3x apart are left out as probable data errors.</dd>
+          <dt>Ticked deals</dt><dd>Every offer in the Matching offers list starts ticked. Untick one to leave it out of every figure on the page: the boxes, the charts, the "vs all" comparisons and the Offer revisions view. Unticked deals stay in the list, greyed out, so they can be ticked again. Reset ticks them all again.</dd>
+          <dt>Exclude outliers</dt><dd>Each average and median drops values outside 1.5 times the interquartile range below the lower quartile or above the upper quartile, worked out on the offers selected (Tukey's fences): the pre-bid speculation premium, the offer period, the days from firm offer to completion or lapse, and the size of an increase. A deal that is an outlier on one measure still counts in the others, and counts and percentages (failed, hostile, PUSU and so on) are unchanged. The premium chart drops the same values. At least 5 values are needed before any are dropped.</dd>
+          <dt>Listed share element</dt><dd>The value of the listed bidder shares in an offer as a percentage of its value per target share, on M&amp;A Monitor's valuation: (final share offer value per target share − the cash part of a mixed offer) ÷ final share offer value per target share. All-cash offers are 0% and all-share offers 100%. Only listed paper counts: unlisted partial share alternatives (rollover shares in a private bidco) count as cash here and under Consideration, and a bidder with no stock exchange recorded counts as unlisted. Where holders can choose between cash and shares, the route M&amp;A Monitor valued the offer on is used. Paper is domestic when the bidder's shares are listed in the UK (FTSE indices, AIM, Aquis), or in Ireland for an Irish target, and overseas otherwise. Offers whose terms are not yet loaded drop out once the range is narrowed or a paper choice is set.</dd>
+          <dt>Word search</dt><dd>Searches the full text of the deal write-ups on the DataBase, as the Search Form's word search does, and keeps the offers whose write-up matches. Offers without a write-up on the DataBase drop out while a word search is set.</dd>
+          <dt>Excel download</dt><dd>The workbook has a Summary sheet with every figure in the boxes and panels (with the same figures for all offers alongside), the offers by year, the premium distribution, the contested bid situations, and an Offers sheet listing every offer that matches the criteria with the values that feed each box, whether it is ticked, and which values were left out as outliers.</dd>
           <dt>Other criteria</dt><dd>Scheme = deal type includes a scheme of arrangement; Offer excludes possible offers, whose structure is not yet known. MBO / MBI follows the DataBase deal type. "Incl. shares" covers any share element or share alternative.</dd>
         </dl>
       </details>
@@ -656,10 +684,10 @@
 <script src="assets/js/config.js?v=1"></script>
 <script src="assets/js/core.js?v=2"></script>
 <script src="assets/js/calendar.js?v=2"></script>
-<script src="assets/js/stats.js?v=1"></script>
+<script src="assets/js/stats.js?v=2"></script>
 <script src="assets/js/revisions.js?v=1"></script>
 <script src="assets/js/report.js?v=5"></script>
-<script src="assets/js/database.js?v=5"></script>
+<script src="assets/js/database.js?v=6"></script>
 <script src="assets/js/admin.js?v=1"></script>
 <script src="assets/js/main.js?v=1"></script>
 <script src="assets/js/grapevine.js?v=3"></script>
