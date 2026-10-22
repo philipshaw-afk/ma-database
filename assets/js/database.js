@@ -18,7 +18,11 @@
   const cleanAdv = s => String(s || "").replace(/\s+/g, " ").trim();
   function fromIndex(x, s) {
     const f = x.f || {};
-    const eq = num(F(f, "Implied Total Equity Value")) ?? (x.v != null ? +x.v : null);
+    /* The database records its value and financial fields in sterling (converted from the deal's currency);
+       the deal value (x.v) is in the deal's currency. equity_value is kept in the deal's currency and
+       equity_value_gbp in sterling; enterprise value and the financials are sterling (fig_ccy). */
+    const eqGbp = num(F(f, "Implied Total Equity Value"));
+    const eq = x.v != null ? +x.v : (eqGbp != null ? MAM.fx(eqGbp, "GBP", x.cur || "GBP") : null);
     const ev = num(F(f, "Enterprise Value"));
     const r = {
       deal_no: x.n, target: x.t || "", bidder: x.b || "", divestor: x.s || F(f, "Ultimate Divestor name") || "",
@@ -27,8 +31,9 @@
       pub: !!x.pub, sector: x.sec || "", deal_type: (x.ty || "").replace(/\s+\/\s+/g, " / ").trim(), deal_status: x.st || "",
       attitude: F(f, "Deal Attitude") || "", consideration: F(f, "Consideration type") || "",
       activities: F(f, "Target Activities") || "", stock_index: F(f, "pdf_stock_index") || "",
-      currency: x.cur || "", equity_value: eq, enterprise_value: ev,
-      premium: (v => v != null && v <= -100 ? null : v)(num(F(f, "Pre-bid speculation premium"))),   // -100 = not available ev_ebitda: num(F(f, "Enterprise Value/EBITDA")), ev_sales: num(F(f, "Enterprise Value/Sales")),
+      currency: x.cur || "", equity_value: eq, enterprise_value: ev, fig_ccy: "GBP",
+      premium: (v => v != null && v <= -100 ? null : v)(num(F(f, "Pre-bid speculation premium"))),   // -100 = not available
+      ev_ebitda: num(F(f, "Enterprise Value/EBITDA")), ev_sales: num(F(f, "Enterprise Value/Sales")),
       pe: num(F(f, "Price/Earnings")), pb: num(F(f, "Price/Book")),
       sales: num(F(f, "Turnover (Sales)")), ebitda: num(F(f, "EBITDA")), net_income: num(F(f, "Net Income (Earnings)")),
       adv_bl: cleanAdv(F(f, "Bidder's Legal Advisor")), adv_bf: cleanAdv(F(f, "Bidder's Financial Advisor")),
@@ -38,6 +43,7 @@
     };
     if (s) mergeStatus(r, s);
     if (!has(r.cross_border) && r.target_country && r.bidder_country) r.cross_border = norm(r.target_country) === norm(r.bidder_country) ? "No" : "Yes";
+    if (eqGbp != null) r.equity_value_gbp = eqGbp;      // the report's own sterling figure
     if (r.equity_value_gbp == null) r.equity_value_gbp = MAM.fx(r.equity_value, r.currency, "GBP");
     return r;
   }
@@ -53,7 +59,7 @@
   function fromStatusOnly(no, s) {
     const r = { deal_no: no, target: s.target || "", bidder: s.bidder || "", divestor: s.divestor || "", pub: true, has_report: false,
       date_announced: s.date_announced || "", _ann: MAM.ukToTs(s.date_announced), _add: null,
-      equity_value: num(s.equity_value), enterprise_value: num(s.enterprise_value), currency: s.currency || "",
+      equity_value: num(s.equity_value), enterprise_value: num(s.enterprise_value), currency: s.currency || "", fig_ccy: s.currency || "",
       sales: num(s.sales), ebitda: num(s.ebitda), ev_ebitda: num(s.ev_ebitda) };
     mergeStatus(r, s);
     return r;
@@ -254,11 +260,11 @@
     /* Deal value / financials (converted to the chosen currency at approximate rates) */
     const vc = seg("dvc") || "GBP", fc = seg("fnc") || "GBP";
     const conv = (v, ccy, want) => v == null ? null : MAM.fx(v, ccy || "GBP", want);
-    [["dv-eq", "Equity value (" + vc + "m)", d => conv(d.equity_value, d.currency, vc)], ["dv-ev", "Enterprise value (" + vc + "m)", d => conv(d.enterprise_value, d.currency, vc)]]
+    [["dv-eq", "Equity value (" + vc + "m)", d => conv(d.equity_value, d.currency, vc)], ["dv-ev", "Enterprise value (" + vc + "m)", d => conv(d.enterprise_value, d.fig_ccy || d.currency, vc)]]
       .forEach(([id, l, g]) => { const r = rid(id); if (on(r)) { C(l, (r[0] ?? "") + "–" + (r[1] ?? "")); f.push(d => inR(g(d), r)); } });
     { const r = rid("dv-prem"); if (on(r)) { C("Pre-bid premium %", (r[0] ?? "") + "–" + (r[1] ?? "")); f.push(d => inR(d.premium, r)); } }
     { const r = rid("dv-bid"); if (on(r)) { C("% bid for", (r[0] ?? "") + "–" + (r[1] ?? "")); f.push(d => inR(d.pct_bid_for, r)); } }
-    [["fn-sales", "Turnover (" + fc + "m)", d => conv(d.sales, d.currency, fc)], ["fn-ebitda", "EBITDA (" + fc + "m)", d => conv(d.ebitda, d.currency, fc)], ["fn-ni", "Net income (" + fc + "m)", d => conv(d.net_income, d.currency, fc)],
+    [["fn-sales", "Turnover (" + fc + "m)", d => conv(d.sales, d.fig_ccy || d.currency, fc)], ["fn-ebitda", "EBITDA (" + fc + "m)", d => conv(d.ebitda, d.fig_ccy || d.currency, fc)], ["fn-ni", "Net income (" + fc + "m)", d => conv(d.net_income, d.fig_ccy || d.currency, fc)],
      ["fn-evs", "EV/Sales", d => d.ev_sales], ["fn-evebitda", "EV/EBITDA", d => d.ev_ebitda], ["fn-pe", "P/E", d => d.pe], ["fn-pb", "P/B", d => d.pb]]
       .forEach(([id, l, g]) => { const r = rid(id); if (on(r)) { C(l, (r[0] ?? "") + "–" + (r[1] ?? "")); f.push(d => inR(g(d), r)); } });
     /* Word search (server) */
@@ -383,10 +389,11 @@
   });
 
   /* downloads */
+  const gbp = (d, k) => { const v = d[k]; if (v == null) return ""; const g = /^(GBP|STG)$/i.test(d.fig_ccy || "") ? v : MAM.fx(v, d.fig_ccy || d.currency, "GBP"); return g == null ? "" : Math.round(g * 10) / 10; };
   const DEAL_COLS = [["Deal No", "deal_no"], ["Target", "target"], ["Target Country", "target_country"], ["Bidder", "bidder"], ["Ultimate Bidder", "ultimate_bidder"], ["Bidding Subsidiary", "bidding_sub"], ["Bidder Country", "bidder_country"], ["Divestor", "divestor"], ["Divestor Country", "divestor_country"],
     ["Sector", "sector"], ["Target Activities", "activities"], ["Stock Exchange Index", "stock_index"], ["Deal Type", "deal_type"], ["Public", d => d.pub ? "Yes" : "No"], ["Deal Status", "deal_status"], ["Date Announced", "date_announced"], ["Attitude", "attitude"], ["Consideration", "consideration"], ["Cross Border", "cross_border"],
-    ["Currency", d => d.currency === "STG" ? "GBP" : d.currency], ["Offer Price", "offer_price"], ["Total Equity Value (m)", "equity_value"], ["Enterprise Value (m)", "enterprise_value"], ["Total Equity Value (GBP m, approx.)", d => d.equity_value_gbp == null ? "" : Math.round(d.equity_value_gbp * 10) / 10],
-    ["Pre-bid Speculation Premium %", "premium"], ["EV/Sales", "ev_sales"], ["EV/EBITDA", "ev_ebitda"], ["Price/Earnings", "pe"], ["Price/Book", "pb"], ["Turnover (m)", "sales"], ["EBITDA (m)", "ebitda"], ["Net Income (m)", "net_income"],
+    ["Currency", d => d.currency === "STG" ? "GBP" : d.currency], ["Offer Price", "offer_price"], ["Total Equity Value (m, deal currency)", "equity_value"], ["Total Equity Value (GBP m)", d => d.equity_value_gbp == null ? "" : Math.round(d.equity_value_gbp * 10) / 10], ["Enterprise Value (GBP m)", d => gbp(d, "enterprise_value")],
+    ["Pre-bid Speculation Premium %", "premium"], ["EV/Sales", "ev_sales"], ["EV/EBITDA", "ev_ebitda"], ["Price/Earnings", "pe"], ["Price/Book", "pb"], ["Turnover (GBP m)", d => gbp(d, "sales")], ["EBITDA (GBP m)", d => gbp(d, "ebitda")], ["Net Income (GBP m)", d => gbp(d, "net_income")],
     ["Bidder Financial Adviser", "adv_bf"], ["Bidder Legal Adviser", "adv_bl"], ["Target/Divestor Financial Adviser", "adv_tf"], ["Target/Divestor Legal Adviser", "adv_tl"]];
   const STATUS_SKIP = new Set(["deal_no", "target", "bidder"]);
   function download(rows, name, kind) {

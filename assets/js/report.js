@@ -126,7 +126,7 @@
     const lines = String(text || "").replace(/\r/g, "").split("\n");
     const wrap = Math.max(80, ...lines.map(l => l.length).filter(n => n < 160));
     const out = [], toc = [];
-    let para = [], list = null, first = true, firstHead = true;
+    let para = [], list = null, first = true, firstHead = true, src = false;
     const joinLines = a => a.reduce((acc, l) => !acc ? l : (/[A-Za-z]-$/.test(acc) && /^[a-z]/.test(l) ? acc + l : acc + " " + l), "");
     const flushP = () => { if (para.length) { out.push((list ? "<li>" : "<p>") + esc(joinLines(para).replace(/\s+/g, " ").trim()) + (list ? "</li>" : "</p>")); para = []; } };
     const closeList = () => { flushP(); if (list) { out.push("</ul>"); list = null; } };
@@ -135,11 +135,20 @@
       if (!t) { closeList(); continue; }
       if (isHeading(t)) {
         closeList();
+        src = /^SOURCES?(\s+USED)?$/.test(t);
         if (firstHead && skipFirstHeading) { firstHead = false; continue; }
         firstHead = false;
         const id = prefix + "-" + t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + toc.length;
         const tt = titleCase(t);
         out.push('<h4 class="' + (first ? "first" : "") + '" id="' + id + '">' + esc(tt) + "</h4>"); toc.push([id, tt]); first = false; continue;
+      }
+      // under SOURCES USED every line is one source (a document or a website), so each is its own list item
+      if (src && !isTable(raw)) {
+        flushP();
+        if (!list) { out.push('<ul class="srcs">'); list = true; }
+        const s = t.replace(/^[*•▪-]\s+/, ""), web = /^(https?:\/\/|www\.)[^\s<>"]+$/i.test(s);
+        out.push("<li>" + (web ? '<a href="' + esc(/^https?:/i.test(s) ? s : "https://" + s) + '" target="_blank" rel="noopener">' + esc(s) + "</a>" : esc(s)) + "</li>");
+        first = false; continue;
       }
       // a table, or a units line ("£ millions") just above one
       const unitStart = UNIT.test(t) && (isTable(lines[i + 1] || "") || (!(lines[i + 1] || "").trim() && isTable(lines[i + 2] || "")));
@@ -244,7 +253,11 @@
     const f = d.fields || {}, idx = MAM.byNo[no] || {};
     const ccy = d.currency || (s && s.currency) || "", pub = !!d.is_public;
     const T = MAM.tc(d.target), B = MAM.tc(fv(f, "Ultimate Bidder") || d.bidder), V = fv(f, "pdf_bidding_subsidiary"), D = d.seller || fv(f, "Ultimate Divestor name");
-    const eq = fnum(f, "Implied Total Equity Value") ?? (d.value != null ? +d.value : null), ev = fnum(f, "Enterprise Value"), nd = fnum(f, "Net debt");
+    /* The database records its value and financial fields (Implied Total Equity Value, Enterprise Value, Net debt,
+       Turnover, EBITDA ...) in sterling, converted from the deal's currency. The deal value is in the deal's currency. */
+    const GBP = "£", sterling = /^(STG|GBP)$/i.test(ccy);
+    const eqGbp = fnum(f, "Implied Total Equity Value"), dealV = has(d.value) && isFinite(+d.value) ? +d.value : null;
+    const ev = fnum(f, "Enterprise Value"), nd = fnum(f, "Net debt");
     const prem = pval(f, PREBID), evebitda = fnum(f, "Enterprise Value/EBITDA"), ebitda = fnum(f, "EBITDA");
     const status = d.deal_status || "Pending", stc = status.split(" ")[0];
     const pctFor = s && has(s.pct_bid_for) ? num(s.pct_bid_for) : null, pctOwned = s && has(s.pct_owned) ? num(s.pct_owned) : null;
@@ -254,14 +267,18 @@
     h += '<div class="dline"><span><b>' + esc(V && MAM.tc(V) !== B ? MAM.tc(V) : B) + "</b>" + (V && MAM.tc(V) !== B ? " <em>(" + esc(B) + ")</em>" : "") + "</span>" + ARROW + "<span><b>" + esc(T) + "</b>" + (pctFor != null ? " <em>" + pctS(pctFor) + "</em>" : "") + "</span>" + (D ? '<span class="dv"><em>from</em> <b>' + esc(MAM.tc(D)) + "</b></span>" : "") + "</div>";
     const nxt = (res.events || []).filter(e => e.ty !== "ann" && dts(e.d) >= today).sort((a, b) => dts(a.d) - dts(b.d))[0];
     h += '<div class="chips">' + (nxt ? '<a class="ch nxt" href="#calendar" data-cal-q="' + esc(T) + '">Next: ' + esc(nxt.l) + " · " + new Date(dts(nxt.d)).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + "</a>" : "") + '<span class="stat stat-' + esc(stc) + '">' + esc(status) + "</span>" + (d.date_announced ? '<span class="ch">Announced ' + esc(MAM.longDate(d.date_announced)) + "</span>" : "") + (d.deal_type ? '<span class="ch">' + esc(d.deal_type.replace(/\s+\/\s+/g, " · ")) + "</span>" : "") + (fv(f, "Deal Attitude") ? '<span class="ch">' + esc(fv(f, "Deal Attitude")) + "</span>" : "") + (fv(f, "Consideration type") ? '<span class="ch">' + esc(fv(f, "Consideration type")) + "</span>" : "") + (xb ? '<span class="ch">' + (xb === "Yes" ? "Cross-border" : esc(d.target_country) + " domestic") + "</span>" : "") + "</div></div>";
-    h += '<div class="acts">' + (d.pdf ? '<a class="btn" href="#" data-pdf="' + esc(no) + '">' + DL + "PDF</a>" : "") + '<a class="btn ghost" href="#" id="rep-csv">Export data</a>' + "</div></header>";
+    h += '<div class="acts">' + (MAM.followBtn ? MAM.followBtn(no) : "") + (d.pdf ? '<a class="btn" href="#" data-pdf="' + esc(no) + '">' + DL + "PDF</a>" : "") + '<a class="btn ghost" href="#" id="rep-csv">Export data</a>' + "</div></header>";
     /* KPI strip */
     const k = [];
     if (pub && d.offer_price != null) { const op = offerPrice(+d.offer_price, d.offer_currency || ccy); k.push(["Offer price", "<small>" + esc(op.pre) + "</small>" + op.v + (op.u ? "<small>" + op.u + "</small>" : ""), "per share" + (fv(f, "Consideration type") ? " · " + esc(fv(f, "Consideration type").toLowerCase()) : "")]); }
-    if (eq != null) k.push([pub ? "Equity value" : "Deal value", esc(ccyLab(ccy)) + nf(eq, 1) + "<small>m</small>", pctFor != null ? pctS(pctFor) + " bid for" : (pub ? "100% equity" : "consideration")]);
-    if (ev != null) k.push(["Enterprise value", esc(ccyLab(ccy)) + nf(ev, 1) + "<small>m</small>", nd != null ? "incl. " + esc(ccyLab(ccy)) + nf(nd, 1) + "m net " + (nd < 0 ? "funds" : "debt") : ""]);
-    if (evebitda != null) k.push(["EV / EBITDA", nf(evebitda, 2) + "<small>x</small>", ebitda != null ? "EBITDA " + esc(ccyLab(ccy)) + nf(ebitda, 1) + "m" : ""]);
-    else if (fnum(f, "Enterprise Value/Sales") != null) k.push(["EV / Sales", nf(fnum(f, "Enterprise Value/Sales"), 2) + "<small>x</small>", fnum(f, "Turnover (Sales)") != null ? "Sales " + esc(ccyLab(ccy)) + nf(fnum(f, "Turnover (Sales)"), 1) + "m" : ""]);
+    if (dealV != null || eqGbp != null) {
+      const sub = (pctFor != null ? pctS(pctFor) + " bid for" : pub ? "100% equity" : dealV != null ? "consideration" : "implied 100% equity") +
+        (dealV != null && !sterling && eqGbp != null ? " · " + GBP + nf(eqGbp, 1) + "m" : "");
+      k.push([pub ? "Equity value" : "Deal value", (dealV != null ? esc(ccyLab(ccy)) + nf(dealV, 1) : GBP + nf(eqGbp, 1)) + "<small>m</small>", sub]);
+    }
+    if (ev != null) k.push(["Enterprise value", GBP + nf(ev, 1) + "<small>m</small>", nd != null ? "incl. " + GBP + nf(Math.abs(nd), 1) + "m net " + (nd < 0 ? "funds" : "debt") : ""]);
+    if (evebitda != null) k.push(["EV / EBITDA", nf(evebitda, 2) + "<small>x</small>", ebitda != null ? "EBITDA " + GBP + nf(ebitda, 1) + "m" : ""]);
+    else if (fnum(f, "Enterprise Value/Sales") != null) k.push(["EV / Sales", nf(fnum(f, "Enterprise Value/Sales"), 2) + "<small>x</small>", fnum(f, "Turnover (Sales)") != null ? "Sales " + GBP + nf(fnum(f, "Turnover (Sales)"), 1) + "m" : ""]);
     if (prem != null) k.push(["Premium", (prem >= 0 ? "+" : "") + nf(prem, 1) + "<small>%</small>", "to the undisturbed price" + (fv(f, "Pre-bid speculation date") ? " (" + esc(uk(fv(f, "Pre-bid speculation date"))) + ")" : ""), "hl"]);
     if (k.length) h += '<div class="kpis" style="grid-template-columns:repeat(' + k.length + ',minmax(0,1fr))">' + k.map(x => '<div class="' + (x[3] || "") + '"><span class="kl">' + x[0] + '</span><span class="kv">' + x[1] + '</span><span class="ks">' + (x[2] || "&nbsp;") + "</span></div>").join("") + "</div>";
     /* offer status band */
@@ -331,13 +348,13 @@
         const mx = Math.max(10, ...prows.map(p => Math.abs(pval(f, p[1]))));
         v += '<div class="sh">Bid premia <span>offer price vs share price</span></div><div class="pmx">' + prows.map(p => { const x = pval(f, p[1]); return '<div class="pmr' + (p[0] === "Pre-bid speculation" ? " hl" : "") + '"><span class="pml">' + esc(p[0]) + '</span><span class="pmt"><i class="' + (x < 0 ? "neg" : "") + '" style="width:' + (Math.abs(x) / mx * 100).toFixed(1) + '%"></i></span><span class="pmv">' + (x >= 0 ? "+" : "") + nf(x, 1) + "%</span></div>"; }).join("") + "</div>";
       }
-      if (frows.length) v += '<div class="sh" style="margin-top:' + (prows.length ? 18 : 0) + 'px">Target figures <span>' + esc(ccyLab(ccy).trim() || ccy) + " millions</span></div><table class=\"t\"><tbody>" + frows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n">' + nf(fnum(f, m[1]), 1) + "</td></tr>").join("") + "</tbody></table>";
+      if (frows.length) v += '<div class="sh" style="margin-top:' + (prows.length ? 18 : 0) + 'px">Target figures <span>£ millions</span></div><table class="t"><tbody>' + frows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n">' + nf(fnum(f, m[1]), 1) + "</td></tr>").join("") + "</tbody></table>";
       v += "</div><div>";
       if (mrows.length) v += '<div class="sh">Valuation multiples and ratios</div><table class="t mult"><thead><tr><th>As recorded on the database</th><th class="r">Value</th></tr></thead><tbody>' + mrows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n x">' + nf(fnum(f, m[1]), 2) + "x</td></tr>").join("") + "</tbody></table>";
       v += sectorCmp(f, res.cmp);
       if (brows.length) v += '<div class="sh" style="margin-top:14px">Banking ratios</div><table class="t"><tbody>' + brows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n">' + nf(fnum(f, m[1]), 2) + "%</td></tr>").join("") + "</tbody></table>";
       v += "</div></div>";
-      o += card("Valuation", esc(ccy ? (ccyLab(ccy).trim() === "£" ? "£" : ccy) + " millions" : "as recorded"), v, "span3");
+      o += card("Valuation", sterling || !ccy ? "£ millions" : "£ millions, as recorded on the DataBase (deal currency " + esc(ccy) + ")", v, "span3");
     }
     /* advisers */
     const ADV = [["Adviser to bidder", [["Financial", "Bidder's Financial Advisor"], ["Legal", "Bidder's Legal Advisor"]]], ["Adviser to target / divestor", [["Financial", "Target/Divestor's Financial Advisor"], ["Legal", "Target/Divestor's Legal Advisor"]]]];
@@ -370,7 +387,8 @@
       let p = '<div class="grid3">';
       const FIN = [["Turnover (sales)", "Turnover (Sales)"], ["EBITDA", "EBITDA"], ["EBITA", "EBITA"], ["Operating profit", "Operating profit"], ["Net profit before tax", "Net profit before tax"], ["Net income (earnings)", "Net Income (Earnings)"], ["Shareholders' funds", "Shareholders funds"], ["Net debt", "Net debt"], ["Enterprise value", "Enterprise Value"], ["Implied total equity value", "Implied Total Equity Value"]];
       const rows = FIN.filter(m => fnum(f, m[1]) != null);
-      p += card("Target financials", esc(ccy ? ccy + " millions, as recorded" : "as recorded"), rows.length ? '<table class="t"><tbody>' + rows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n">' + nf(fnum(f, m[1]), 1) + "</td></tr>").join("") + "</tbody></table>" : '<p class="fine pad" style="padding-top:14px">No target financials were recorded for this deal (for example where only parent-company accounts are available).</p>', "span2");
+      const fxNote = !sterling && ccy && dealV != null && rows.length ? '<p class="fine pad" style="padding-top:12px">The DataBase records these figures in sterling. The deal value in ' + esc(ccy) + " is " + esc(ccyLab(ccy)) + nf(dealV, 1) + "m.</p>" : "";
+      p += card("Target financials", "£ millions, as recorded", rows.length ? '<table class="t"><tbody>' + rows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n">' + nf(fnum(f, m[1]), 1) + "</td></tr>").join("") + "</tbody></table>" + fxNote : '<p class="fine pad" style="padding-top:14px">No target financials were recorded for this deal (for example where only parent-company accounts are available).</p>', "span2");
       p += card("Multiples", "", mrows.length ? '<table class="t mult"><tbody>' + mrows.map(m => "<tr><td>" + esc(m[0]) + '</td><td class="n x">' + nf(fnum(f, m[1]), 2) + "x</td></tr>").join("") + "</tbody></table>" : '<p class="fine pad" style="padding-top:14px">None recorded.</p>', "");
       p += "</div>";
       panels += '<div class="panel" role="tabpanel" data-panel="financials" hidden>' + p + "</div>";
@@ -390,7 +408,7 @@
       const HIDE = /^(pdf_|added_by$|admin_id$|value_note$)/;
       const keys = Object.keys(f).filter(k => !HIDE.test(k) && has(f[k])).sort((a, b) => a.localeCompare(b));
       const base = [["Deal number", no], ["Target", d.target], ["Bidder", d.bidder], ["Divestor", d.seller], ["Target country", d.target_country], ["Bidder country", d.bidder_country], ["Divestor country", d.seller_country], ["Deal type", d.deal_type], ["Deal status", d.deal_status], ["Date announced", MAM.isoToUk(d.date_announced)], ["Currency", d.currency], ["Deal value (m)", d.value], ["Offer price", d.offer_price], ["Shares in issue", d.shares_in_issue != null ? nf(+d.shares_in_issue, 0) : null]];
-      panels += '<div class="panel" role="tabpanel" data-panel="data" hidden><div class="grid3">' + card("All fields as recorded", "Report last updated " + esc(MAM.isoToUk(d.updated)), facts(base.concat(keys.map(k => [k, String(f[k]).trim()])), "c3"), "span3") + "</div></div>";
+      panels += '<div class="panel" role="tabpanel" data-panel="data" hidden><div class="grid3">' + card("All fields as recorded", "Report last updated " + esc(MAM.isoToUk(d.updated)) + " · deal value in " + esc(ccy === "STG" ? "GBP" : ccy || "the deal currency") + ", other values and financial figures in £ millions", facts(base.concat(keys.map(k => [k, String(f[k]).trim()])), "c3"), "span3") + "</div></div>";
     }
     h += panels;
     h += '<p class="rfoot">M&amp;A Monitor Ltd · Deal ' + esc(no) + " · This report is provided for the use of the licensed subscriber only.</p>";
@@ -424,7 +442,7 @@
   function exportCsv() {
     if (!current) return;
     const d = current.deal, f = d.fields || {}, s = current.status ? current.status.data : {};
-    const rows = [["Deal number", d.deal_number], ["Target", d.target], ["Bidder", d.bidder], ["Divestor", d.seller], ["Target country", d.target_country], ["Bidder country", d.bidder_country], ["Sector", d.sector], ["Deal type", d.deal_type], ["Deal status", d.deal_status], ["Date announced", MAM.isoToUk(d.date_announced)], ["Currency", d.currency], ["Deal value (m)", d.value], ["Offer price", d.offer_price]]
+    const rows = [["Deal number", d.deal_number], ["Target", d.target], ["Bidder", d.bidder], ["Divestor", d.seller], ["Target country", d.target_country], ["Bidder country", d.bidder_country], ["Sector", d.sector], ["Deal type", d.deal_type], ["Deal status", d.deal_status], ["Date announced", MAM.isoToUk(d.date_announced)], ["Currency", d.currency], ["Deal value (m)", d.value], ["Offer price", d.offer_price], ["Currency of the other values and financial figures", "GBP (millions, as recorded on the DataBase)"]]
       .concat(Object.keys(f).filter(k => !/^(pdf_|added_by|admin_id|value_note)/.test(k)).map(k => [k, f[k]]))
       .concat(Object.keys(s || {}).filter(k => !/^(notes|web_fields|file)$/.test(k)).map(k => ["Offer status: " + k.replace(/_/g, " "), s[k]]));
     MAM.csv([["Field", 0], ["Value", 1]], rows, "deal_" + d.deal_number + ".csv");
@@ -459,6 +477,7 @@
     document.title = MAM.tc(res.deal.target) + " · Deal " + no + " · M&A Monitor";
     const nav = $("#rep-nav"); if (nav) nav.textContent = MAM.tc(res.deal.target) + " (" + no + ")";
     MAM.log(no, "view");
+    if (MAM.followOpened) MAM.followOpened(no);
   }
   MAM.hooks["show:deal"] = no => { const parts = location.hash.slice(1).split("/"); open(parts[1] || no || "", parts[2]); };
 })();

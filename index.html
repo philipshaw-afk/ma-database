@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@500;700;800&family=Source+Serif+4:ital,opsz,wght@1,8..60,700&display=swap">
 <link rel="stylesheet" href="assets/css/base.css?v=1">
-<link rel="stylesheet" href="assets/css/site.css?v=6">
+<link rel="stylesheet" href="assets/css/site.css?v=7">
 </head>
 <body>
 <div class="mesh" aria-hidden="true"></div>
@@ -37,6 +37,14 @@
     <li class="admin-only" hidden><a href="#users" data-g="users">Users</a></li>
   </ul>
   <div class="hdr-r">
+    <div class="fol" id="fol" hidden>
+      <button type="button" class="fol-b" id="fol-btn" aria-expanded="false" aria-controls="fol-pop" aria-label="Updates on deals you follow" title="Updates on deals you follow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="fol-n" id="fol-n" hidden>0</span></button>
+      <div class="fol-pop" id="fol-pop" role="dialog" aria-labelledby="fol-t" hidden>
+        <div class="fol-h"><div><b id="fol-t">Updates on deals you follow</b><span id="fol-sub"></span></div><button type="button" class="fol-x" id="fol-x" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button></div>
+        <div class="fol-l" id="fol-l"></div>
+        <div class="fol-f"><a href="#lookup" id="fol-all">Deals you follow</a><button type="button" class="linkbtn" id="fol-read" hidden>Mark all as read</button></div>
+      </div>
+    </div>
     <div class="user" id="user-chip" hidden><button type="button" class="av" id="btn-account" title="Account">··</button><span class="em" id="user-email"></span><a class="lo" href="#" id="btn-logout">logout</a></div>
   </div>
 </header>
@@ -115,6 +123,10 @@
         <div class="fld lk-wrap"><label for="lk-q">Deal Number or Target Name</label><input class="in" id="lk-q" type="text" placeholder="e.g. 0044244 or Spire Healthcare" role="combobox" aria-expanded="false" aria-controls="lk-sug" aria-autocomplete="list"><ul class="lk-sug" id="lk-sug" role="listbox" hidden></ul></div>
         <button class="btn" type="submit">View</button>
       </form>
+    </div>
+    <div class="card" id="fol-card">
+      <div class="card-hd"><span class="card-t">Deals you follow</span><span class="cnt" id="cnt-fol">0</span></div>
+      <div class="tscr"><table id="t-fol"></table></div>
     </div>
     <div class="grid2">
       <div class="card"><div class="card-hd"><span class="card-t">Deals recently viewed by you</span><span class="cnt" id="cnt-viewed">0</span></div><div class="tscr"><table id="t-viewed"></table></div></div>
@@ -686,10 +698,11 @@
 <script src="assets/js/calendar.js?v=2"></script>
 <script src="assets/js/stats.js?v=2"></script>
 <script src="assets/js/revisions.js?v=1"></script>
-<script src="assets/js/report.js?v=5"></script>
-<script src="assets/js/database.js?v=6"></script>
+<script src="assets/js/report.js?v=6"></script>
+<script src="assets/js/database.js?v=7"></script>
 <script src="assets/js/admin.js?v=1"></script>
 <script src="assets/js/main.js?v=1"></script>
 <script src="assets/js/grapevine.js?v=3"></script>
+<script src="assets/js/follow.js?v=1"></script>
 </body>
 </html>
