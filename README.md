@@ -46,8 +46,18 @@ assets/js/follow.js        follow deals: Follow button, header bell and pop-up, 
 assets/js/main.js          data loading
 assets/js/vendor/          supabase-js 2.45.4 (self-hosted)
 supabase/functions/db-admin/index.ts   user-management edge function (deployed)
-supabase/functions/deal-docs/index.ts  document upload edge function (deployed; resolve / list / upload / delete)
+supabase/functions/deal-docs/index.ts  document upload edge function (deployed; resolve / list / sign + register / upload / delete)
 ```
+
+## Deal documents (how they get there)
+
+`sync_database_documents.py` and `database_docs_config.json` (url + upload token) sit in the Claude docs folder on Phil's PC, next to `watch_and_upload.py`, which calls them:
+
+* after every successful admin-site upload, for that deal folder;
+* every 5 minutes for folders still waiting for their deal to reach the DataBase with a deal number (retried every 30 minutes for up to 45 days), and for folders where a document was added or changed;
+* straight away for any folder with a new `_docs_ready.json` (forces a resend).
+
+The deal is found from Claude.txt (Target Company + Date Announced + Bidder must all agree, so an older deal for the same target is never picked); a `_database_deal.txt` holding the 7-digit deal number overrides it. Each folder gets `_docs_synced.json` recording what was sent or why it is waiting. Files go straight to storage on a signed upload link, then are recorded in `deal_documents`. Only folders uploaded to the admin site from 23-10-2026 are picked up automatically; `python sync_database_documents.py --since YYYY-MM-DD` backfills older ones.
 
 ## One-time Supabase setting
 

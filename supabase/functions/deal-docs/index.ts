@@ -2,9 +2,11 @@
 // Called by the PC uploader (sync_database_documents.py in the Claude docs folder) and by Claude, never by the website.
 // Every call must carry the upload token in the x-docs-token header; only its SHA-256 is kept (app_secrets 'deal-docs').
 //
-//   GET  ?action=resolve&target=<name>&date=<YYYY-MM-DD>  -> which DataBase deal a deal folder belongs to
+//   GET  ?action=resolve&target=<name>[&date=<YYYY-MM-DD>][&bidder=<name>] -> which DataBase deal a deal folder belongs to
 //   GET  ?action=list&deal=<deal number>                  -> documents already on the site for that deal
-//   PUT  ?action=upload&deal=..&dir=..&name=..[&date=..]  -> body = the file; replaces a file of the same name
+//   POST ?action=sign&deal=..&dir=..&name=..&size=..      -> a signed upload link: PUT the file straight to storage, then
+//   POST ?action=register&deal=..&dir=..&name=..[&date=..] -> records it on the deal (replaces a file of the same name)
+//   PUT  ?action=upload&deal=..&dir=..&name=..[&date=..]  -> small files in one step: body = the file
 //   POST ?action=delete&deal=..&dir=..&name=..            -> removes one document
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -47,43 +49,52 @@ async function authorised(req: Request) {
 const LEGAL = new Set(["PLC", "LTD", "LIMITED", "INC", "INCORPORATED", "LLC", "LLP", "LP", "NV", "BV", "SA", "SAS", "SE", "AG", "AB", "ASA",
   "AS", "OYJ", "OY", "SPA", "SRL", "GMBH", "KGAA", "CORP", "CORPORATION", "CO", "COMPANY", "HOLDING", "HOLDINGS", "GROUP", "FZ", "FZE",
   "FZCO", "PTY", "BHD", "KK", "LTDA", "THE"]);
-const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/&/g, " AND ")
-  .replace(/[.'’]/g, "").replace(/[^A-Z0-9]+/g, " ").trim();
+const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/&/g, " AND ")
+  .replace(/[.'\u2019]/g, "").replace(/[^A-Z0-9]+/g, " ").trim();
 const core = (s: string) => norm(s).split(" ").filter((w) => w && !LEGAL.has(w)).join(" ");
 const days = (a: string, b: string) => Math.abs((Date.parse(a) - Date.parse(b)) / 86400000);
 
-async function resolve(target: string, date: string | null) {
+// bidders that say nothing about who the bidder is never rule a deal out
+const GENERIC = /^(UNDISCLOSED|NO NAMED OFFEROR|UNKNOWN|UNNAMED|INSTITUTIONAL INVESTORS|PRIVATE INVESTORS?|MANAGEMENT|MANAGEMENT TEAM|VARIOUS)\b/;
+
+async function resolve(target: string, date: string | null, bidder: string | null) {
   if (!target.trim()) return json({ ok: false, error: "target is required" }, 400);
   // reported deals with a deal number; a two-year window keeps the list short (folders are for recent deals)
   const since = new Date(Date.now() - 730 * 86400000).toISOString().slice(0, 10);
   const { data, error } = await sb.from("deals")
-    .select("deal_number,target,bidder,date_announced,admin_state,export_path,created_at")
+    .select("deal_number,target,bidder,date_announced,admin_state,export_path")
     .eq("coverage_status", "reported").not("deal_number", "is", null)
     .or(`date_announced.gte.${since},date_announced.is.null`).order("date_announced", { ascending: false }).limit(1000);
   if (error) return json({ ok: false, error: error.message }, 500);
   const n = norm(target), c = core(target);
-  const scored = (data || []).map((d) => {
+  const bn = bidder ? norm(bidder) : "", bc = bidder ? core(bidder) : "";
+  const bidOk = (b: string | null) => {
+    if (!bc || !b || GENERIC.test(bn) || GENERIC.test(norm(b))) return true;
+    const x = core(b);
+    return !!x && (x === bc || (Math.min(x.length, bc.length) >= 3 && (x.includes(bc) || bc.includes(x))));
+  };
+  const named = (data || []).map((d) => {
     const dn = norm(d.target || ""), dc = core(d.target || "");
     const s = dn === n ? 3 : dc && dc === c ? 2 : (dc.startsWith(c + " ") || c.startsWith(dc + " ")) && Math.min(dc.length, c.length) >= 5 ? 1 : 0;
-    return { ...d, score: s, near: date && d.date_announced ? days(date, d.date_announced) <= 7 : null };
+    return { ...d, score: s };
   }).filter((d) => d.score > 0);
-  // a matching announcement date beats the name score; then the closest name match
-  const pool = date && scored.some((d) => d.near) ? scored.filter((d) => d.near) : scored;
+  // the announcement date (when the report has one) and the bidder must agree as well as the name, so an
+  // earlier deal for the same target is never picked while the new report is not on the DataBase yet
+  const pool = named.filter((d) => bidOk(d.bidder) && (!date || (!!d.date_announced && days(date, d.date_announced) <= 7)));
   const best = pool.length ? Math.max(...pool.map((d) => d.score)) : 0;
-  const top = pool.filter((d) => d.score === best);
-  const out = top.map((d) => ({ deal_number: d.deal_number, target: d.target, bidder: d.bidder, date_announced: d.date_announced,
-    on_site: d.admin_state === "LIVE" && !!d.export_path }));
+  const pick = (list: typeof named) => list.map((d) => ({ deal_number: d.deal_number, target: d.target, bidder: d.bidder,
+    date_announced: d.date_announced, on_site: d.admin_state === "LIVE" && !!d.export_path }));
+  const out = pick(pool.filter((d) => d.score === best));
   // the same deal can have several rows (e.g. a DRAFT and the LIVE copy); one deal number is a match
   const numbers = [...new Set(out.map((d) => d.deal_number))];
-  if (numbers.length === 1) {
-    const live = out.find((d) => d.on_site) || out[0];
-    return json({ ok: true, match: live });
-  }
-  return json({ ok: true, match: null, candidates: out.slice(0, 20) });
+  if (numbers.length === 1) return json({ ok: true, match: out.find((d) => d.on_site) || out[0] });
+  if (numbers.length > 1) return json({ ok: true, match: null, ambiguous: true, candidates: out.slice(0, 20) });
+  // nothing yet: the same-name deals, for information only
+  return json({ ok: true, match: null, ambiguous: false, candidates: pick(named).slice(0, 10) });
 }
 
 // ------------------------------------------------------------------ documents
-const safeName = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w\-. ()&,+'!@=;$]/g, "_").replace(/\s+/g, " ").trim();
+const safeName = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w\-. ()&,+'!@=;$]/g, "_").replace(/\s+/g, " ").trim();
 function docDate(name: string, given: string | null) {
   if (given && /^\d{4}-\d{2}-\d{2}$/.test(given)) return given;
   const m = /(?:^|[^\d])(\d{2})-(\d{2})-(\d{2})(?!\d)/.exec(name);
@@ -126,6 +137,46 @@ async function upload(req: Request, u: URL) {
   return json({ ok: true, deal, dir, name, path, size: body.length, doc_date: row.doc_date });
 }
 
+// checks shared by sign / register
+type Checked = { err: Response | null; deal: string; dir: string; name: string; mime: string; folder: string; file: string };
+const fail = (r: Response): Checked => ({ err: r, deal: "", dir: "", name: "", mime: "", folder: "", file: "" });
+async function check(u: URL, size: number | null): Promise<Checked> {
+  const { deal, dir, name } = target(u);
+  if (!/^\d{7}$/.test(deal)) return fail(json({ ok: false, error: "deal must be a 7-digit deal number" }, 400));
+  if (!dir) return fail(json({ ok: false, error: "dir must be Press releases, Circulars, Accounts or Other" }, 400));
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (!name || !MIME[ext]) return fail(json({ ok: false, error: "file type not allowed: " + name }, 400));
+  if (size != null && size > MAX_BYTES) return fail(json({ ok: false, error: "file is over 50MB" }, 413));
+  if (!(await dealExists(deal))) return fail(json({ ok: false, error: "no reported deal " + deal }, 404));
+  return { err: null, deal, dir, name, mime: MIME[ext], folder: `docs/${deal}/${SLUG[dir]}`, file: safeName(name) };
+}
+
+async function sign(u: URL) {
+  const c = await check(u, Number(u.searchParams.get("size") || 0));
+  if (c.err) return c.err;
+  const path = `${c.folder}/${c.file}`;
+  const { data, error } = await sb.storage.from(BUCKET).createSignedUploadUrl(path, { upsert: true });
+  if (error || !data) return json({ ok: false, error: "storage: " + (error ? error.message : "no link") }, 500);
+  return json({ ok: true, path, url: data.signedUrl, content_type: c.mime });
+}
+
+async function register(u: URL) {
+  const c = await check(u, null);
+  if (c.err) return c.err;
+  const { data, error } = await sb.storage.from(BUCKET).list(c.folder, { search: c.file, limit: 100 });
+  if (error) return json({ ok: false, error: "storage: " + error.message }, 500);
+  const obj = (data || []).find((o) => o.name === c.file);
+  if (!obj) return json({ ok: false, error: "the file has not been uploaded yet" }, 409);
+  const size = Number((obj.metadata as Record<string, unknown> | null)?.size || 0) || null;
+  if (size != null && size > MAX_BYTES) { await sb.storage.from(BUCKET).remove([`${c.folder}/${c.file}`]); return json({ ok: false, error: "file is over 50MB" }, 413); }
+  const row = { deal_number: c.deal, directory: c.dir, file_name: c.name, path: `${c.folder}/${c.file}`, size_bytes: size, mime_type: c.mime,
+    doc_date: docDate(c.name, u.searchParams.get("date")), source: (u.searchParams.get("source") || "pc-uploader").slice(0, 40),
+    uploaded_at: new Date().toISOString() };
+  const { error: e2 } = await sb.from("deal_documents").upsert(row, { onConflict: "deal_number,directory,file_name" });
+  if (e2) return json({ ok: false, error: e2.message }, 500);
+  return json({ ok: true, deal: c.deal, dir: c.dir, name: c.name, path: row.path, size, doc_date: row.doc_date });
+}
+
 async function list(u: URL) {
   const deal = (u.searchParams.get("deal") || "").trim();
   const { data, error } = await sb.from("deal_documents").select("directory,file_name,size_bytes,doc_date,uploaded_at,path").eq("deal_number", deal)
@@ -148,8 +199,10 @@ Deno.serve(async (req) => {
   const u = new URL(req.url);
   const action = u.searchParams.get("action") || "";
   try {
-    if (action === "resolve") return await resolve(u.searchParams.get("target") || "", u.searchParams.get("date"));
+    if (action === "resolve") return await resolve(u.searchParams.get("target") || "", u.searchParams.get("date"), u.searchParams.get("bidder"));
     if (action === "list") return await list(u);
+    if (action === "sign" && req.method === "POST") return await sign(u);
+    if (action === "register" && req.method === "POST") return await register(u);
     if (action === "upload" && (req.method === "PUT" || req.method === "POST")) return await upload(req, u);
     if (action === "delete" && req.method === "POST") return await remove(u);
     return json({ ok: false, error: "unknown action" }, 400);
