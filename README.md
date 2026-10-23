@@ -9,6 +9,7 @@ A login-only client site built from the integrated-site mockup (`mamonitorintegr
 | **M&A DataBase › Home** | Pending public offers dashboard, deal lookup, your recently viewed / downloaded reports, recently added deals | `db_deal_index()`, `db_offer_events`, `db_activity` |
 | **Search Form / Search Results** | Parties, deal parameters, values, financials, word search of the report text, offer-status and country-specific fields; CSV downloads | `db_deal_index()` (filtered in the browser), `db_word_search()` (full-text search on the server) |
 | **Deal report** | New-format report: KPIs, offer status, transaction, key dates, valuation, advisers, financials, commentary, payment details, all fields; PDF download | `db_deal()`; PDFs from the private `deal-files` bucket (`exports/…`) via short-lived signed links |
+| **Documents** (tab on each deal report) | The deal's source documents grouped as Press releases / Circulars / Accounts / Other, with date (period end for accounts), size, open (PDFs in a new tab) and download; tab only shows when a deal has documents | `db_deal_documents()`; files in the private `deal-files` bucket under `docs/<deal number>/…` via short-lived signed links; put there by the `deal-docs` edge function (PC uploader / Claude) |
 | **Calendar** | Shareholder meetings, acceptance periods, regulatory dates, PUSU deadlines | `db_offer_events` |
 | **ARB-Insight › Offer Statistics / Offer Revisions** | UK & Irish public offers since 2008 with live filters; tick boxes on the deal list (unticked deals leave every figure), Exclude outliers (Tukey 1.5×IQR per measure), word search of the write-ups, listed share element slider and domestic/overseas paper (shown once consideration terms are loaded), Excel workbook of every box and the offers behind it | `db_uk_offer_stats()`, `db_word_search()` |
 | **Follow deals** | Follow button on each deal report; bell in the header with a pop-up of report updates on the deals you follow (pops up by itself when something is new); "Deals you follow" card on Home | `db_follow()`, `db_my_follows()`, `db_follows_seen()`; updates come from `db_deal_updates`, which trigger `cards_db_deal_update` fills when a DIANA update card is verified with the updated report PDF attached (the card title, without the company prefix, is the headline clients see) |
@@ -22,9 +23,10 @@ Deal reports are DIANA's own `deals` rows (reported, LIVE, with an exported PDF)
 
 * Supabase Auth on DIANA's project. Users sign in with email + password (or an emailed sign-in link).
 * Who may read: the DIANA team (`team_members`, lead/deputy are admins) plus anyone active in `db_members` (clients, or extra admins). Everything is enforced in the database: the tables have row-level security and the `db_*` functions check `db_can_read()` / `db_is_admin()`. Clients never read DIANA's internal tables directly.
-* Clients can only fetch PDFs under `deal-files/exports/`, never card attachments.
+* Clients can only fetch report PDFs under `deal-files/exports/` and deal documents under `deal-files/docs/`, never card attachments.
+* Documents are written only by the `deal-docs` edge function, which needs the upload token (header `x-docs-token`; only its SHA-256 is stored, in `app_secrets` as `deal-docs`). The token sits in `database_docs_config.json` in the Claude docs folder on Phil's PC.
 * "Remember me" keeps the session in the browser; otherwise it ends with the browser session.
-* Usage (report views, PDF downloads, CSV exports) is logged in `db_activity`.
+* Usage (report views, PDF downloads, document downloads, CSV exports) is logged in `db_activity`.
 
 ## Files
 
@@ -44,6 +46,7 @@ assets/js/follow.js        follow deals: Follow button, header bell and pop-up, 
 assets/js/main.js          data loading
 assets/js/vendor/          supabase-js 2.45.4 (self-hosted)
 supabase/functions/db-admin/index.ts   user-management edge function (deployed)
+supabase/functions/deal-docs/index.ts  document upload edge function (deployed; resolve / list / upload / delete)
 ```
 
 ## One-time Supabase setting

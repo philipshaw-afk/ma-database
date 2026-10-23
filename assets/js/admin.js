@@ -26,7 +26,7 @@
     const t = data.team || [];
     $("#adm-team").innerHTML = "<thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead><tbody>" + t.map(u => "<tr><td class=\"nm\">" + esc(u.name) + "</td><td>" + esc(u.email) + "</td><td>" + (u.role === "admin" ? "Admin" : "Team") + "</td></tr>").join("") + "</tbody>";
     const a = data.recent || [];
-    $("#adm-activity").innerHTML = "<thead><tr><th>When</th><th>Who</th><th>Deal</th><th>Action</th></tr></thead><tbody>" + (a.length ? a.map(x => { const r = MAM.byNo[x.deal]; return '<tr><td><span class="dt">' + esc(when(x.at)) + "</span></td><td>" + esc(x.email || "") + '</td><td><a class="dno" href="#deal/' + esc(x.deal) + '">' + esc(x.deal) + "</a> " + (r ? '<span class="muted">' + esc(MAM.tc(r.target)) + "</span>" : "") + "</td><td>" + ({ view: "Viewed", pdf: "Downloaded PDF", csv: "Exported data" }[x.kind] || esc(x.kind)) + "</td></tr>"; }).join("") : '<tr><td colspan="4" class="muted" style="padding:16px">No activity yet.</td></tr>') + "</tbody>";
+    $("#adm-activity").innerHTML = "<thead><tr><th>When</th><th>Who</th><th>Deal</th><th>Action</th></tr></thead><tbody>" + (a.length ? a.map(x => { const r = MAM.byNo[x.deal]; return '<tr><td><span class="dt">' + esc(when(x.at)) + "</span></td><td>" + esc(x.email || "") + '</td><td><a class="dno" href="#deal/' + esc(x.deal) + '">' + esc(x.deal) + "</a> " + (r ? '<span class="muted">' + esc(MAM.tc(r.target)) + "</span>" : "") + "</td><td>" + ({ view: "Viewed", pdf: "Downloaded PDF", csv: "Exported data", doc: "Downloaded document" }[x.kind] || esc(x.kind)) + "</td></tr>"; }).join("") : '<tr><td colspan="4" class="muted" style="padding:16px">No activity yet.</td></tr>') + "</tbody>";
   }
 
   $("#adm-add").addEventListener("submit", async e => {

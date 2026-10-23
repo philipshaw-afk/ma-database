@@ -245,3 +245,36 @@ dialog.mdl.wide{width:min(900px,calc(100vw - 32px))}
 .nrep .prose ul.srcs li{text-align:left;font-size:14px;line-height:1.55}
 .nrep .prose ul.srcs a{color:var(--a);text-decoration:none;font-weight:550}
 .nrep .prose ul.srcs a:hover{text-decoration:underline}
+
+/* deal report: Documents tab (source documents from the deal folder) */
+.nrep .rtab .cnt{display:inline-block;min-width:18px;margin-left:5px;padding:2px 6px;border-radius:999px;background:rgba(79,110,247,.1);color:var(--a);font:700 10.5px/1.2 var(--sans);text-align:center;vertical-align:1px}
+.nrep .docs .dgrp{padding:14px 18px 8px}
+.nrep .docs .dgrp+.dgrp{border-top:1px solid var(--line)}
+.nrep .docs .sh{margin:0 0 4px}
+.nrep .docs .sh span{color:var(--t3)}
+.nrep .docs .dhd,.nrep .dlist li{display:grid;grid-template-columns:36px minmax(0,1fr) 92px 64px 28px;align-items:center;gap:14px}
+.nrep .docs .dhd{padding:6px 0;border-bottom:1px solid var(--line);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3)}
+.nrep .docs .dhd .r{text-align:right}
+.nrep .dlist{list-style:none;margin:0;padding:0}
+.nrep .dlist li{padding:10px 0;border-bottom:1px solid var(--line2)}
+.nrep .dlist li:last-child{border-bottom:0}
+.nrep .dlist li:hover{background:rgba(79,110,247,.03)}
+.nrep .ft{display:inline-flex;align-items:center;justify-content:center;height:24px;border-radius:5px;background:#C2410C;color:#fff;font:800 9px/1 var(--mono);letter-spacing:.04em}
+.nrep .ft.doc{background:#2B579A}.nrep .ft.ppt{background:#B7472A}.nrep .ft.xls{background:#217346}
+.nrep .dn{min-width:0}
+.nrep .dn a{font-size:13.5px;font-weight:650;color:var(--ink)}
+.nrep .dn a:hover{color:var(--a)}
+.nrep .dn .tg{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(15,23,41,.05);color:var(--t2);font:600 11px/1.3 var(--sans);letter-spacing:0;vertical-align:1px;white-space:nowrap}
+.nrep .dn .fn{display:block;margin-top:3px;font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nrep .dn .mm{display:none}
+.nrep .dlist .dd{font-size:12.5px;color:var(--t2)}
+.nrep .dlist .dz{font-size:12px;color:var(--t3);text-align:right}
+@media (max-width:640px){
+  .nrep .docs .dgrp{padding:12px 14px 6px}
+  .nrep .docs .dhd{display:none}
+  .nrep .dlist li{grid-template-columns:34px minmax(0,1fr) 28px;gap:10px}
+  .nrep .dlist .dd,.nrep .dlist .dz{display:none}
+  .nrep .dn .fn{display:none}
+  .nrep .dn .mm{display:block;margin-top:3px;font-size:11px;color:var(--t3)}
+}
+@media print{.nrep .dlist .ib{display:none}}

@@ -248,6 +248,43 @@
   }
 
   /* ---------------- report ---------------- */
+  /* ---------------- source documents (Documents tab) ---------------- */
+  // File names follow the deal-folder convention "<Entity> <document> DD-MM-YY(tag)(tag).ext"
+  const DOC_DIRS = [["Press releases", "Date"], ["Circulars", "Date"], ["Accounts", "Period end"], ["Other", "Date"]];
+  const DOC_TAGS = { ann: "Announcement", "8k": "Form 8-K", "10k": "Form 10-K", "10q": "Form 10-Q", "20f": "Form 20-F", "6k": "Form 6-K", "ad hoc": "Ad hoc" };
+  const docType = n => { const e = (n.split(".").pop() || "").toLowerCase(); return /^docx?$/.test(e) ? ["doc", "DOC"] : /^pptx?$/.test(e) ? ["ppt", "PPT"] : /^xlsx?$/.test(e) ? ["xls", "XLS"] : ["pdf", "PDF"]; };
+  const docSize = b => !b ? "" : b >= 1048576 ? nf(b / 1048576, 1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
+  function docTitle(n) {
+    let s = n.replace(/\.[a-z0-9]{2,5}$/i, "");
+    const tags = [];
+    s = s.replace(/\(([^()]*)\)/g, (m, t) => { t = t.trim(); if (t) tags.push(DOC_TAGS[t.toLowerCase()] || t.charAt(0).toUpperCase() + t.slice(1)); return " "; });
+    s = s.replace(/(^|\s)\d{2}-\d{2}-\d{2}(?=\s|$)/g, " ").replace(/\s+/g, " ").trim();
+    return { title: s || n, tags };
+  }
+  function docsCard(docs) {
+    const groups = DOC_DIRS.map(([dir, when]) => [dir, when, docs.filter(x => x.dir === dir)]).filter(g => g[2].length);
+    const body = groups.map(([dir, when, list]) => '<div class="dgrp"><div class="sh">' + esc(dir) + " <span>" + list.length + "</span></div>" +
+      '<div class="dhd" aria-hidden="true"><span></span><span>Document</span><span>' + when + '</span><span class="r">Size</span><span></span></div><ul class="dlist">' +
+      list.map(x => {
+        const i = docs.indexOf(x), t = docTitle(x.name), ft = docType(x.name), dt = x.date ? MAM.isoToUk(x.date) : "", sz = docSize(x.size);
+        return '<li><span class="ft ' + ft[0] + '">' + ft[1] + '</span><div class="dn"><a href="#" data-doc="' + i + '" data-open="1" title="' + (ft[0] === "pdf" ? "Open" : "Download") + " " + esc(x.name) + '">' + esc(t.title) + "</a>" +
+          t.tags.map(g => '<span class="tg">' + esc(g) + "</span>").join("") + '<span class="fn">' + esc(x.name) + '</span><span class="mm">' + [dt, sz].filter(Boolean).join(" · ") + "</span></div>" +
+          '<span class="dd">' + esc(dt) + '</span><span class="dz">' + esc(sz) + '</span><a class="ib" href="#" data-doc="' + i + '" title="Download ' + esc(x.name) + '">' + DL + "</a></li>";
+      }).join("") + "</ul></div>").join("");
+    return '<div class="grid3">' + card("Documents", docs.length + " source document" + (docs.length === 1 ? "" : "s") + " for this deal: announcements, circulars, accounts and other filings", '<div class="docs">' + body + "</div>", "span3") + "</div>";
+  }
+  async function openDoc(i, view) {
+    const x = current && current.docs && current.docs[+i]; if (!x) return;
+    const inline = view && docType(x.name)[0] === "pdf";
+    // open the tab straight away (inside the click) so the browser does not block it, then point it at the file
+    const w = inline ? window.open("", "_blank") : null;
+    const { data, error } = await MAM.sb.storage.from(MAM_CONFIG.pdfBucket).createSignedUrl(x.path, 300, inline ? undefined : { download: x.name });
+    if (error || !data) { if (w) w.close(); MAM.toast("Could not fetch the document: " + (error ? error.message : "unknown error"), true); return; }
+    if (w) { try { w.opener = null; } catch (e) {} w.location.href = data.signedUrl; }
+    else { const a = document.createElement("a"); a.href = data.signedUrl; a.rel = "noopener"; if (inline) a.target = "_blank"; document.body.appendChild(a); a.click(); a.remove(); }
+    MAM.log(current.deal.deal_number, "doc");
+  }
+
   function build(no, res) {
     const d = res.deal, s = res.status ? res.status.data : null, sAsOf = res.status ? MAM.isoToUk(res.status.as_of) : "";
     const f = d.fields || {}, idx = MAM.byNo[no] || {};
@@ -299,6 +336,8 @@
     if (d.overview || d.profiles || d.background) tabs.push(["commentary", "Commentary"]);
     if (d.financial_notes) tabs.push(["payment", "Payment details"]);
     if (d.target_details) tabs.push(["target", "Target details"]);
+    const docs = Array.isArray(res.docs) ? res.docs : [];
+    if (docs.length) tabs.push(["docs", 'Documents <span class="cnt">' + docs.length + "</span>"]);
     tabs.push(["data", "All fields"]);
     h += '<nav class="rtab" role="tablist" aria-label="Report sections">' + tabs.map((t, i) => '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' + (i === 0) + '">' + t[1] + "</button>").join("") + "</nav>";
 
@@ -403,6 +442,8 @@
     panels += docPanel("commentary", "Commentary", [[d.overview, "c-o"], [d.profiles, "c-p"], [d.background, "c-b"]]);
     panels += docPanel("payment", "Payment details", [[d.financial_notes, "p"]]);
     panels += docPanel("target", "Target details", [[d.target_details, "t"]]);
+    /* --- source documents --- */
+    if (docs.length) panels += '<div class="panel" role="tabpanel" data-panel="docs" hidden>' + docsCard(docs) + "</div>";
     /* --- all fields --- */
     {
       const HIDE = /^(pdf_|added_by$|admin_id$|value_note$)/;
@@ -436,6 +477,7 @@
     const t = e.target.closest(".rtab [data-tab]"); if (t) { show(t.dataset.tab); return; }
     const g = e.target.closest("a[data-go]"); if (g) { e.preventDefault(); show(g.dataset.go); return; }
     const a = e.target.closest("a[data-sec]"); if (a) { e.preventDefault(); const el = document.getElementById(a.dataset.sec); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    const dc = e.target.closest("a[data-doc]"); if (dc) { e.preventDefault(); openDoc(dc.dataset.doc, !!dc.dataset.open); return; }
     if (e.target.closest("#rep-csv")) { e.preventDefault(); exportCsv(); }
   });
   let current = null;
@@ -462,11 +504,12 @@
     window.scrollTo(0, 0);
     let res = cache[no];
     if (!res) {
-      // the sector comparison is extra: if it fails the report still opens without it
-      const [{ data, error }, cmp] = await Promise.all([MAM.sb.rpc("db_deal", { p_deal_number: no }),
-        MAM.sb.rpc("db_sector_comparison", { p_deal: no }).then(r => r.error ? null : r.data, () => null)]);
+      // the sector comparison and the documents are extra: if either fails the report still opens without it
+      const [{ data, error }, cmp, docs] = await Promise.all([MAM.sb.rpc("db_deal", { p_deal_number: no }),
+        MAM.sb.rpc("db_sector_comparison", { p_deal: no }).then(r => r.error ? null : r.data, () => null),
+        MAM.sb.rpc("db_deal_documents", { p_deal_number: no }).then(r => r.error ? [] : r.data || [], () => [])]);
       if (error) { R.innerHTML = '<div class="rep-loading">Could not load deal ' + esc(no) + ": " + esc(error.message) + "</div>"; return; }
-      res = data; if (res) res.cmp = cmp; cache[no] = res;
+      res = data; if (res) { res.cmp = cmp; res.docs = docs; } cache[no] = res;
     }
     if (!res || !res.deal) { R.innerHTML = '<div class="rep-loading">There is no report for deal ' + esc(no) + ' on this site. <a href="#search">Search the DataBase</a>.</div>'; return; }
     if ((location.hash.split("/")[1] || "") !== no) return;     // the user moved on while it loaded
