@@ -491,6 +491,7 @@
     const kind = (document.querySelector('input[name="dlt"]:checked') || {}).value || "deal";
     const rows = sorted().filter(d => sel.has(d.deal_no));
     if (!rows.length) { MAM.toast("Select at least one deal to download.", true); return; }
+    if (kind === "custom") { if (MAM.premia) MAM.premia.open(rows); return; }
     if (XL[kind]) { openXl(kind, rows); return; }
     if (kind === "status" && !rows.some(d => d.has_status)) { MAM.toast("None of the selected deals has an offer-status record.", true); return; }
     download(rows, (kind === "status" ? "offer_status_" : "deals_") + new Date().toISOString().slice(0, 10) + ".csv", kind);
@@ -556,6 +557,7 @@
   const BP = [C.no, C.ann, C.comp, col("pbd", "Pre-bid speculation date", pick(fv("Pre-bid speculation date"), x => x.kd.pre_bid_speculation), "d", "Pre-Bid Speculation Date"),
     C.tname, C.tctry, C.act, C.sect, C.bname, C.dname, C.type, C.stat, C.att, C.cons, C.eqv, C.ev, C.dadd, C.drem]
     .concat(PREM.map((h, i) => col("pr" + i, h, fv(h), "p", h.charAt(0).toUpperCase() + h.slice(1))));
+  MAM.premiaDealCols = BP.slice(0, 18);   // the deal information columns, also used by the customised bid premia download (premia.js)
   /* sheet layouts follow the old downloads: multiples have the header in row 6 with fitted columns, bid premia in row 8 at width 20 */
   const XL = {
     multiples: { title: "Transaction multiples download", file: "transaction_multiples",

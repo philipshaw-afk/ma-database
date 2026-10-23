@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@500;700;800&family=Source+Serif+4:ital,opsz,wght@1,8..60,700&display=swap">
 <link rel="stylesheet" href="assets/css/base.css?v=1">
-<link rel="stylesheet" href="assets/css/site.css?v=11">
+<link rel="stylesheet" href="assets/css/site.css?v=13">
 </head>
 <body>
 <div class="mesh" aria-hidden="true"></div>
@@ -394,7 +394,7 @@
     <div class="card-hd">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><a class="btn ghost sm" href="#search">← Back to Search Criteria</a><div class="seg" id="r-view" role="radiogroup" aria-label="Columns"><label><input type="radio" name="rview" value="deal" checked><span>Deal summary</span></label><label><input type="radio" name="rview" value="status"><span>Offer status</span></label></div></div>
       <div class="dlbar">
-        <div class="seg" role="radiogroup" aria-label="Download"><label><input type="radio" name="dlt" value="deal" checked><span>Deal summary · CSV</span></label><label><input type="radio" name="dlt" value="status"><span>Offer status · CSV</span></label><label><input type="radio" name="dlt" value="multiples"><span>Transaction multiples · Excel</span></label><label><input type="radio" name="dlt" value="premia"><span>Bid premia · Excel</span></label></div>
+        <div class="seg" role="radiogroup" aria-label="Download"><label><input type="radio" name="dlt" value="deal" checked><span>Deal summary · CSV</span></label><label><input type="radio" name="dlt" value="status"><span>Offer status · CSV</span></label><label><input type="radio" name="dlt" value="multiples"><span>Transaction multiples · Excel</span></label><label><input type="radio" name="dlt" value="premia"><span>Bid premia · Excel</span></label><label><input type="radio" name="dlt" value="custom"><span>Customised bid premia · Excel</span></label></div>
         <button type="button" class="btn sm" id="r-dl"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>Download</button>
       </div>
     </div>
@@ -697,15 +697,65 @@
   </form>
 </dialog>
 
+<dialog class="mdl wide" id="dlg-cp" aria-labelledby="cp-t">
+  <form method="dialog" class="mdl-b">
+    <div class="dl-hd"><span class="step on"><i>3</i>Download form</span><h2 id="cp-t">Customised bid premia download</h2></div>
+    <p class="pdb-h" id="cp-n"></p>
+    <div class="cp-body">
+      <div class="cp-grid">
+        <div class="fld"><label for="cp-ref">Reference date</label><select class="sel" id="cp-ref">
+          <option value="rumour" selected>First day of rumours / approach</option>
+          <option value="ann">Announcement date</option>
+          <option value="comp">Completion date</option>
+          <option value="inc1">First increased offer date</option>
+          <option value="inc2">Second increased offer date</option>
+          <option value="inc3">Third increased offer date</option>
+          <option value="inc4">Fourth increased offer date</option></select></div>
+        <div class="fld"><label for="cp-px">Share price</label><select class="sel" id="cp-px">
+          <option value="adj" selected>M&amp;A Monitor adjusted close</option>
+          <option value="close">Close (unadjusted)</option>
+          <option value="open">Open (unadjusted)</option>
+          <option value="high">High (unadjusted)</option>
+          <option value="low">Low (unadjusted)</option>
+          <option value="vwap">VWAP (unadjusted)</option></select></div>
+        <div class="fld"><label for="cp-offer">Offer price</label><select class="sel" id="cp-offer">
+          <option value="final" selected>Final offer</option>
+          <option value="initial">Initial offer</option>
+          <option value="atref">Offer in force at the reference date</option></select></div>
+        <div class="fld"><span class="cp-lab">Count periods in</span><div class="seg" role="radiogroup" aria-label="Count periods in"><label><input type="radio" name="cp-days" value="cal" checked><span>Calendar days</span></label><label><input type="radio" name="cp-days" value="td"><span>Trading days</span></label></div></div>
+      </div>
+      <p class="cp-hint" id="cp-ref-h"></p>
+      <div class="cp-per">
+        <div class="cp-side"><div class="grpt">Periods before the reference date</div><div class="cp-chips" id="cp-before"><label class="chip"><input type="checkbox" value="1d" checked> 1 day</label><label class="chip"><input type="checkbox" value="1w" checked> 1 week</label><label class="chip"><input type="checkbox" value="2w"> 2 weeks</label><label class="chip"><input type="checkbox" value="3w"> 3 weeks</label><label class="chip"><input type="checkbox" value="4w" checked> 4 weeks</label><label class="chip"><input type="checkbox" value="2m"> 2 months</label><label class="chip"><input type="checkbox" value="3m" checked> 3 months</label><label class="chip"><input type="checkbox" value="6m"> 6 months</label><label class="chip"><input type="checkbox" value="1y"> 1 year</label><label class="chip"><input type="checkbox" value="2y"> 2 years</label><label class="chip cp-cust"><input type="checkbox" value="custom"> <input class="in" type="number" min="1" max="1500" step="1" id="cp-before-n" placeholder="n" aria-label="Custom number of days before"> days</label></div></div>
+        <div class="cp-side"><div class="grpt">Periods after the reference date</div><div class="cp-chips" id="cp-after"><label class="chip"><input type="checkbox" value="1d"> 1 day</label><label class="chip"><input type="checkbox" value="1w"> 1 week</label><label class="chip"><input type="checkbox" value="2w"> 2 weeks</label><label class="chip"><input type="checkbox" value="3w"> 3 weeks</label><label class="chip"><input type="checkbox" value="4w"> 4 weeks</label><label class="chip"><input type="checkbox" value="2m"> 2 months</label><label class="chip"><input type="checkbox" value="3m"> 3 months</label><label class="chip"><input type="checkbox" value="6m"> 6 months</label><label class="chip"><input type="checkbox" value="1y"> 1 year</label><label class="chip"><input type="checkbox" value="2y"> 2 years</label><label class="chip cp-cust"><input type="checkbox" value="custom"> <input class="in" type="number" min="1" max="1500" step="1" id="cp-after-n" placeholder="n" aria-label="Custom number of days after"> days</label></div></div>
+      </div>
+      <div class="cp-opts">
+        <label class="os-ck"><input type="checkbox" id="cp-zero" checked> On the reference date itself</label>
+        <label class="os-ck"><input type="checkbox" id="cp-avg" checked> Average of the <input class="in cp-num" type="number" min="2" max="260" step="1" id="cp-avg-n" value="30" aria-label="Number of trading days to average"> trading days before the reference date</label>
+      </div>
+      <div class="cp-grid cp-g2">
+        <div class="fld"><span class="cp-lab">Layout</span><div class="seg" role="radiogroup" aria-label="Layout"><label><input type="radio" name="cp-lay" value="points" checked><span>The periods ticked</span></label><label><input type="radio" name="cp-lay" value="daily"><span>Every trading day in the window</span></label></div></div>
+        <div class="fld" id="cp-show-f"><span class="cp-lab">For each period</span><div class="seg" role="radiogroup" aria-label="For each period"><label><input type="radio" name="cp-show" value="all" checked><span>Date, price and premium</span></label><label><input type="radio" name="cp-show" value="prem"><span>Premium only</span></label></div></div>
+        <div class="fld" id="cp-daily-f" hidden><span class="cp-lab">Daily values</span><div class="seg" role="radiogroup" aria-label="Daily values"><label><input type="radio" name="cp-dv" value="prem" checked><span>Premia</span></label><label><input type="radio" name="cp-dv" value="price"><span>Share prices</span></label></div></div>
+        <div class="fld"><span class="cp-lab">Premia range (optional)</span><div class="rng cp-rng"><input class="in" type="number" step="any" id="cp-lo" placeholder="low %" aria-label="Lowest premium %"><span>to</span><input class="in" type="number" step="any" id="cp-hi" placeholder="high %" aria-label="Highest premium %"></div></div>
+      </div>
+      <details class="cp-cols"><summary>Deal information columns <span id="cp-cols-n"></span></summary><div class="dl-grid" id="cp-cols"></div></details>
+    </div>
+    <div class="li-msg err" id="cp-msg" role="alert" hidden></div>
+    <div class="dl-ft"><span class="pdb-h">Excel (.xlsx). Premia worked out from the share price history on the DataBase.</span><div class="mdl-a"><button type="button" class="btn ghost" id="cp-close">Cancel</button><button type="button" class="btn" id="cp-go"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>Download Excel</button></div></div>
+  </form>
+</dialog>
+
 <script src="assets/js/vendor/supabase-2.45.4.js"></script>
 <script src="assets/js/config.js?v=1"></script>
 <script src="assets/js/core.js?v=2"></script>
 <script src="assets/js/calendar.js?v=2"></script>
 <script src="assets/js/stats.js?v=3"></script>
 <script src="assets/js/revisions.js?v=1"></script>
-<script src="assets/js/prices.js?v=1"></script>
+<script src="assets/js/prices.js?v=2"></script>
 <script src="assets/js/report.js?v=9"></script>
-<script src="assets/js/database.js?v=8"></script>
+<script src="assets/js/database.js?v=9"></script>
+<script src="assets/js/premia.js?v=1"></script>
 <script src="assets/js/admin.js?v=2"></script>
 <script src="assets/js/main.js?v=1"></script>
 <script src="assets/js/grapevine.js?v=3"></script>

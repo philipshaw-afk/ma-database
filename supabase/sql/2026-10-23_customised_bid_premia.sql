@@ -1,5 +1,5 @@
 -- Customised bid premia (23-10-2026)
--- STATUS: NOT YET APPLIED to DIANA's project (the migration was cancelled twice; waiting for Phil's go-ahead).
+-- Applied to DIANA's project on 23-10-2026.
 -- Share prices for the customised bid premia download, and the dividends / splits behind the
 -- "M&A Monitor adjusted" price. Applied to DIANA's project as migration "customised_bid_premia".
 --

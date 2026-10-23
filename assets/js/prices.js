@@ -73,7 +73,145 @@
       .filter(x => x[1]).map(x => "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>").join("");
     return '<div class="grid3"><section class="rc span3 pr-card"><header class="rc-h"><div><h3>Share price</h3><p>' + sub + "</p></div>" + seg + '</header><div class="pr-chart" data-def="' + (ranges.find(r => r[0] === def) || [0, 0])[1] + '"></div></section>' +
       '<section class="rc span2 pr-side"><header class="rc-h"><div><h3>Key prices</h3><p>The closes behind the bid premia, from the share price series</p></div></header>' + tbl + '<p class="fine pad">' + note + "</p></section>" +
-      '<section class="rc"><header class="rc-h"><div><h3>Price series</h3></div></header><dl class="facts c2">' + facts + "</dl></section></div>";
+      '<section class="rc"><header class="rc-h"><div><h3>Price series</h3></div></header><dl class="facts c2">' + facts + "</dl></section>" +
+      adjSection(prices) + "</div>";
+  }
+
+  /* ------------------------------------------------------------------ dividends and splits (M&A Monitor adjusted price) */
+  const isAdmin = () => !!(MAM.me && MAM.me.role === "admin");
+  // dividends to 2-4 decimals (0.215 stays 0.215)
+  const divAmt = (v, c) => { c = ccyNorm(c); const t = (+v).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 4 }); if (c === "GBX") return t + "p"; const sy = SYM[c]; return (sy != null ? sy : c + " ") + t; };
+  const adjAmt = (a, ccy) => a.kind === "split" ? (a.ratio >= 1 ? nf(a.ratio, a.ratio % 1 ? 4 : 0) + "-for-1 split" : "1-for-" + nf(1 / a.ratio, (1 / a.ratio) % 1 ? 2 : 0) + " consolidation") : divAmt(a.amount, ccy);
+  function adjList(adj, ccy) {
+    if (!adj || !adj.length) return '<p class="fine pad">None entered: the M&amp;A Monitor adjusted price is the close.</p>';
+    return '<table class="t pr-adj-t"><thead><tr><th>Ex-date</th><th>Type</th><th class="r">Per share</th><th>Note</th></tr></thead><tbody>' +
+      adj.map(a => '<tr><td class="dt">' + uk(a.d) + "</td><td>" + (a.kind === "split" ? "Split / consolidation" : "Dividend") + '</td><td class="n">' + adjAmt(a, ccy) + "</td><td>" + esc(a.note || "") + "</td></tr>").join("") + "</tbody></table>";
+  }
+  function adjSection(prices) {
+    return '<section class="rc span3 pr-adj"><header class="rc-h"><div><h3>Dividends and splits</h3><p>For the M&amp;A Monitor adjusted price used by the customised bid premia download: each dividend is deducted from the prices before its ex-dividend date, and splits / consolidations applied to them</p></div>' +
+      (isAdmin() ? '<button type="button" class="btn ghost sm" data-adj="edit">Edit</button>' : "") + '</header><div class="pr-adj-list">' + adjList(prices.adj, prices.currency) + '</div><div class="pr-adj-ed" hidden></div></section>';
+  }
+  // "7 Jul 2026", "07/07/2026", "2026-07-07", "07-07-26" -> ISO
+  const MONS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  function parseDate(s) {
+    s = String(s || "").trim(); let m;
+    const ok = (y, mo, d) => { if (y < 100) y += 2000; const t = Date.UTC(y, mo - 1, d), x = new Date(t); return x.getUTCMonth() === mo - 1 && x.getUTCDate() === d ? iso(t) : null; };
+    if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s))) return ok(+m[1], +m[2], +m[3]);
+    if ((m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/.exec(s))) return ok(+m[3], +m[2], +m[1]);
+    if ((m = /^(\d{1,2})(?:st|nd|rd|th)?[\s-]+([A-Za-z]{3})[A-Za-z]*\.?[\s,-]+(\d{2,4})$/.exec(s)) && MONS[m[2].toLowerCase()]) return ok(+m[3], MONS[m[2].toLowerCase()], +m[1]);
+    return null;
+  }
+  // a dividend amount as written in a table: "35c", "12.5p", "$0.35", "€0.35", "0.35", "GBX 12.5" -> { v (main unit), ccy (from the symbol, if any) }
+  function parseAmount(s) {
+    s = String(s || "").replace(/\u00a0/g, " ").trim(); if (!s || /^[–—-]+$/.test(s)) return null;
+    const m = /(-?\d[\d,]*(?:\.\d+)?)/.exec(s); if (!m) return null;
+    let v = parseFloat(m[1].replace(/,/g, "")); if (!isFinite(v)) return null;
+    let ccy = /\$/.test(s) ? "USD" : /€/.test(s) ? "EUR" : /£/.test(s) ? "GBP" : null;
+    const after = s.slice(m.index + m[1].length).trim().toLowerCase();
+    if (/^(c|ct|cts|cents?)\b/.test(after)) v /= 100;
+    else if (/^(p|pence)\b/.test(after)) { v /= 100; ccy = "GBP"; }
+    const code = /\b([A-Z]{3})\b/.exec(s); if (code && !ccy) ccy = code[1] === "GBX" ? "GBP" : code[1];
+    if (code && code[1] === "GBX") v /= 100;
+    return { v, ccy };
+  }
+  // a pasted dividend table (copied from a web page, with its header row) -> [{ d, v, ccy, note, special }]
+  function parseDividendTable(text) {
+    const lines = String(text || "").split(/\r?\n/).map(l => l.replace(/\s+$/, "")).filter(l => l.trim());
+    const cells = l => (l.includes("\t") ? l.split("\t") : l.split(/\s{2,}/)).map(c => c.trim());
+    const hi = lines.findIndex(l => cells(l).some(c => /\bex\b|ex[-\s.]*(div|dividend|date)/i.test(c)));
+    if (hi < 0) throw new Error("No header row with an ex-dividend date column (copy the table with its header row).");
+    const H = cells(lines[hi]), find = re => H.findIndex(h => re.test(h));
+    const cEx = find(/\bex\b|ex[-\s.]*(div|dividend|date)/i);
+    let cAmt = find(/decl[a-z.]*\s*amount/i); if (cAmt < 0) cAmt = H.findIndex(h => /amount|dividend|value|gross/i.test(h) && !/forecast|date|yield|type/i.test(h));
+    const cCcy = find(/curr/i), cStatus = find(/status/i), cType = find(/type|kind/i);
+    if (cAmt < 0) throw new Error("No amount column found in the header row.");
+    const out = [], skipped = [];
+    lines.slice(hi + 1).forEach(l => {
+      const c = cells(l); if (c.length < 2) return;
+      if (cStatus >= 0 && /forecast/i.test(c[cStatus] || "")) { skipped.push("forecast"); return; }
+      const d = parseDate(c[cEx]); const a = parseAmount(c[cAmt]);
+      if (!d || !a) { skipped.push("unreadable"); return; }
+      if (!(a.v > 0)) { skipped.push("zero"); return; }
+      const ccy = (cCcy >= 0 && /^[A-Z]{3}$/.test(c[cCcy] || "") ? (c[cCcy] === "GBX" ? "GBP" : c[cCcy]) : null) || a.ccy;
+      const type = cType >= 0 ? c[cType] : "";
+      out.push({ d, v: a.v, ccy, raw: c[cAmt], type, special: /special|capital|return/i.test(type) });
+    });
+    return { rows: out, skipped };
+  }
+  // the editor's lines <-> rows
+  const fmtNum = v => String(Math.round(v * 1e6) / 1e6);
+  const toLines = adj => (adj || []).map(a => uk(a.d) + ", " + a.kind + ", " + fmtNum(a.kind === "split" ? +a.ratio : +a.amount) + (a.note ? ", " + a.note : "")).join("\n");
+  function fromLines(text) {
+    const rows = [], bad = [];
+    String(text || "").split(/\r?\n/).forEach((l, i) => {
+      if (!l.trim()) return;
+      const p = l.split(","), d = parseDate(p[0]), k = String(p[1] || "").trim().toLowerCase(), v = parseFloat(String(p[2] || "").replace(/[^\d.\-]/g, ""));
+      const kind = /^div/.test(k) ? "dividend" : /^(split|consol)/.test(k) ? "split" : null;
+      if (!d || !kind || !(v > 0)) { bad.push(i + 1); return; }
+      rows.push({ d, kind, amount: kind === "dividend" ? v : null, ratio: kind === "split" ? v : null, note: p.slice(3).join(",").trim() });
+    });
+    return { rows: rows.sort((a, b) => a.d < b.d ? -1 : 1), bad };
+  }
+  function adjEditor(sec, prices) {
+    const ed = sec.querySelector(".pr-adj-ed"), pc = ccyNorm(prices.currency), unit = pc === "GBX" ? "pence (GBp)" : pc || "the share price currency";
+    ed.hidden = false;
+    ed.innerHTML = '<div class="fld"><label class="pr-adj-lab" for="adj-lines">One line per dividend or split: <b>ex-date, dividend, amount per share in ' + esc(unit) + ', note</b> or <b>ex-date, split, ratio, note</b> (ratio = shares after per share before: 2 for a 2-for-1 split, 0.1 for a 1-for-10 consolidation)</label>' +
+      '<textarea class="in" id="adj-lines" rows="6" spellcheck="false" placeholder="07/07/2026, dividend, 0.30, Interim 35c USD"></textarea></div>' +
+      '<details class="pr-paste"><summary>Read a dividend table pasted from a web page</summary>' +
+      '<p class="fine">Copy the dividend history table from the page you use, including its header row, and paste it below. Forecast rows and zero amounts are left out; amounts in another currency are converted at the rate shown, which you can change.</p>' +
+      '<textarea class="in" id="adj-paste" rows="5" spellcheck="false" placeholder="Status   Type   Decl. date   Ex-div date   Pay date   Decl. Currency   Forecast amount   Decl. amount"></textarea>' +
+      '<div class="pr-prev" id="adj-prev"></div></details>' +
+      '<div class="pr-adj-a"><span class="pr-adj-m" id="adj-msg" role="status"></span><button type="button" class="btn ghost sm" data-adj="cancel">Cancel</button><button type="button" class="btn sm" data-adj="save">Save</button></div>';
+    const lines = ed.querySelector("#adj-lines"), paste = ed.querySelector("#adj-paste"), prev = ed.querySelector("#adj-prev"), msg = ed.querySelector("#adj-msg");
+    lines.value = toLines(prices.adj);
+    const fx = MAM_CONFIG.fxPerGbp || {}, rates = {};
+    // dividend currency -> share price currency (pence count as GBP with the amount x 100)
+    const base = pc === "GBX" ? "GBP" : pc;
+    const defRate = c => fx[c] && fx[base] ? fx[base] / fx[c] : null;
+    let parsed = null;
+    function preview() {
+      if (!parsed) { prev.innerHTML = ""; return; }
+      const foreign = [...new Set(parsed.rows.map(r => r.ccy).filter(c => c && c !== base))];
+      foreign.forEach(c => { if (rates[c] == null) rates[c] = defRate(c); });
+      const conv = r => { let v = r.v; if (r.ccy && r.ccy !== base) { const k = rates[r.ccy]; if (!(k > 0)) return null; v *= k; } return pc === "GBX" ? v * 100 : v; };
+      const rateRow = foreign.map(c => '<label class="pr-fx">1 ' + esc(c) + ' = <input class="in" type="number" step="any" min="0" data-fx="' + esc(c) + '" value="' + (rates[c] != null ? fmtNum(rates[c]) : "") + '"> ' + esc(base) + "</label>").join("");
+      const ok = parsed.rows.map(r => ({ r, v: conv(r) }));
+      prev.innerHTML = (rateRow ? '<div class="pr-fxs">' + rateRow + '<span class="fine">Approximate rates to start with: use the rate on each ex-date if you have it.</span></div>' : "") +
+        '<table class="t pr-adj-t"><thead><tr><th>Ex-date</th><th>Type</th><th class="r">As written</th><th class="r">Per share (' + esc(pc === "GBX" ? "GBp" : pc) + ')</th></tr></thead><tbody>' +
+        ok.map(x => "<tr" + (x.r.special ? ' class="warn"' : "") + '><td class="dt">' + uk(x.r.d) + "</td><td>" + esc(x.r.type || "Dividend") + (x.r.special ? ' <small>check: may come with a share consolidation</small>' : "") + '</td><td class="n">' + esc(x.r.raw) + (x.r.ccy ? " " + esc(x.r.ccy) : "") + '</td><td class="n">' + (x.v == null ? "—" : fmtNum(x.v)) + "</td></tr>").join("") + "</tbody></table>" +
+        '<div class="pr-adj-a"><span class="fine">' + parsed.rows.length + " dividend" + (parsed.rows.length === 1 ? "" : "s") + " read" + (parsed.skipped.length ? "; " + parsed.skipped.length + " row" + (parsed.skipped.length === 1 ? "" : "s") + " left out (forecasts, zero or unreadable)" : "") +
+        '</span><button type="button" class="btn sm" data-adj="add"' + (ok.some(x => x.v != null) ? "" : " disabled") + ">Add to the list</button></div>";
+      prev._rows = ok;
+    }
+    paste.addEventListener("input", () => {
+      if (!paste.value.trim()) { parsed = null; preview(); return; }
+      try { parsed = parseDividendTable(paste.value); preview(); } catch (e) { parsed = null; prev.innerHTML = '<p class="fine err">' + esc(e.message) + "</p>"; }
+    });
+    prev.addEventListener("input", e => { const c = e.target.dataset.fx; if (!c) return; rates[c] = parseFloat(e.target.value); const keep = e.target.selectionStart; preview(); const i = prev.querySelector('[data-fx="' + c + '"]'); if (i) { i.focus(); try { i.setSelectionRange(keep, keep); } catch (_) {} } });
+    ed.onclick = async e => {
+      const b = e.target.closest("[data-adj]"); if (!b) return;
+      const act = b.dataset.adj;
+      if (act === "cancel") { ed.hidden = true; ed.innerHTML = ""; return; }
+      if (act === "add") {
+        const have = fromLines(lines.value).rows, keyOf = r => r.d + "|" + r.kind;
+        const add = (prev._rows || []).filter(x => x.v != null).map(x => ({ d: x.r.d, kind: "dividend", amount: x.v, note: [x.r.type, x.r.raw + (x.r.ccy ? " " + x.r.ccy : ""), x.r.ccy && x.r.ccy !== base ? "at " + fmtNum(rates[x.r.ccy]) : ""].filter(Boolean).join(" ") }));
+        const seen = new Set(have.map(keyOf)), merged = have.concat(add.filter(r => !seen.has(keyOf(r)))).sort((a, b) => a.d < b.d ? -1 : 1);
+        lines.value = toLines(merged); paste.value = ""; parsed = null; preview();
+        msg.textContent = add.length + " added to the list: check them, then Save."; return;
+      }
+      if (act === "save") {
+        const r = fromLines(lines.value);
+        if (r.bad.length) { msg.textContent = "Line" + (r.bad.length > 1 ? "s " : " ") + r.bad.join(", ") + " can't be read (date, dividend or split, amount)."; return; }
+        b.disabled = true; msg.textContent = "Saving…";
+        const { error } = await MAM.sb.rpc("db_admin_save_adjustments", { p_ric: prices.ric, p_rows: r.rows.map(x => ({ d: x.d, kind: x.kind, amount: x.amount, ratio: x.ratio, note: x.note })) });
+        b.disabled = false;
+        if (error) { msg.textContent = "Could not save: " + error.message; return; }
+        prices.adj = r.rows.map(x => ({ d: x.d, kind: x.kind, amount: x.amount, ratio: x.ratio, note: x.note }));
+        sec.querySelector(".pr-adj-list").innerHTML = adjList(prices.adj, prices.currency);
+        ed.hidden = true; ed.innerHTML = "";
+        MAM.toast(r.rows.length + " dividend" + (r.rows.length === 1 ? "" : "s") + " / split" + (r.rows.length === 1 ? "" : "s") + " saved for RIC " + prices.ric + ".");
+      }
+    };
   }
 
   /* ------------------------------------------------------------------ the chart (SVG, drawn to the card's width) */
@@ -172,6 +310,8 @@
     svg.addEventListener("keydown", e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); show(cur < 0 ? vis.length - 1 : cur + (e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 20 : 1)); } else if (e.key === "Escape") hide(); });
   }
   function mount(root, deal, f, prices) {
+    const sec = root.querySelector(".pr-adj");
+    if (sec) sec.querySelector(".rc-h").addEventListener("click", e => { if (e.target.closest('[data-adj="edit"]') && isAdmin()) adjEditor(sec, prices); });
     const box = root.querySelector(".pr-chart"); if (!box) return;
     const m = model(deal, f, prices); if (!m.rows.length) return;
     let days = +box.dataset.def;
@@ -197,7 +337,7 @@
       const v = split(l), d = toIso(v[c.date] || ""), close = num(c.close >= 0 ? v[c.close] : null) ?? num(c.last >= 0 ? v[c.last] : null);
       if (!d || close == null) continue;
       if (c.ric >= 0 && v[c.ric]) rics.add(v[c.ric]);
-      if (!meta) meta = { ric: c.ric >= 0 ? v[c.ric] : "", isin: c.isin >= 0 ? v[c.isin] : "", name: c.name >= 0 ? v[c.name] : "", ccy: c.ccy >= 0 ? v[c.ccy] : "" };
+      if (!meta) { const cc = c.ccy >= 0 ? String(v[c.ccy] || "").trim() : ""; meta = { ric: c.ric >= 0 ? v[c.ric] : "", isin: c.isin >= 0 ? v[c.isin] : "", name: c.name >= 0 ? v[c.name] : "", ccy: /^(GBp|GBX|GBx)$/.test(cc) ? "GBX" : cc }; }
       rows.push([d, close, num(v[c.open]), num(v[c.high]), num(v[c.low]), num(v[c.vol]), num(v[c.vwap])]);
     }
     if (!rows.length) throw new Error("No prices found in the file.");
@@ -228,5 +368,5 @@
     };
   }
 
-  MAM.prices = { card, mount, load, parseCsv };
+  MAM.prices = { card, mount, load, parseCsv, parseDividendTable, parseAmount, parseDate, fromLines };
 })();
