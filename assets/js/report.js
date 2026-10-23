@@ -304,7 +304,9 @@
     h += '<div class="dline"><span><b>' + esc(V && MAM.tc(V) !== B ? MAM.tc(V) : B) + "</b>" + (V && MAM.tc(V) !== B ? " <em>(" + esc(B) + ")</em>" : "") + "</span>" + ARROW + "<span><b>" + esc(T) + "</b>" + (pctFor != null ? " <em>" + pctS(pctFor) + "</em>" : "") + "</span>" + (D ? '<span class="dv"><em>from</em> <b>' + esc(MAM.tc(D)) + "</b></span>" : "") + "</div>";
     const nxt = (res.events || []).filter(e => e.ty !== "ann" && dts(e.d) >= today).sort((a, b) => dts(a.d) - dts(b.d))[0];
     h += '<div class="chips">' + (nxt ? '<a class="ch nxt" href="#calendar" data-cal-q="' + esc(T) + '">Next: ' + esc(nxt.l) + " · " + new Date(dts(nxt.d)).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + "</a>" : "") + '<span class="stat stat-' + esc(stc) + '">' + esc(status) + "</span>" + (d.date_announced ? '<span class="ch">Announced ' + esc(MAM.longDate(d.date_announced)) + "</span>" : "") + (d.deal_type ? '<span class="ch">' + esc(d.deal_type.replace(/\s+\/\s+/g, " · ")) + "</span>" : "") + (fv(f, "Deal Attitude") ? '<span class="ch">' + esc(fv(f, "Deal Attitude")) + "</span>" : "") + (fv(f, "Consideration type") ? '<span class="ch">' + esc(fv(f, "Consideration type")) + "</span>" : "") + (xb ? '<span class="ch">' + (xb === "Yes" ? "Cross-border" : esc(d.target_country) + " domestic") + "</span>" : "") + "</div></div>";
-    h += '<div class="acts">' + (MAM.followBtn ? MAM.followBtn(no) : "") + (d.pdf ? '<a class="btn" href="#" data-pdf="' + esc(no) + '">' + DL + "PDF</a>" : "") + '<a class="btn ghost" href="#" id="rep-csv">Export data</a>' + "</div></header>";
+    h += '<div class="acts">' + (MAM.followBtn ? MAM.followBtn(no) : "") + (d.pdf ? '<a class="btn" href="#" data-pdf="' + esc(no) + '">' + DL + "PDF</a>" : "") + '<a class="btn ghost" href="#" id="rep-csv">Export data</a>' +
+      (MAM.me && MAM.me.role === "admin" && MAM.prices ? '<label class="btn ghost" title="Load a Morningstar share price download (CSV) as this deal\'s target share price">Share prices<input type="file" accept=".csv,text/csv" id="rep-prices" hidden></label>' : "") +
+      "</div></header>" + '<div id="pr-load" class="pr-load" hidden></div>';
     /* KPI strip */
     const k = [];
     if (pub && d.offer_price != null) { const op = offerPrice(+d.offer_price, d.offer_currency || ccy); k.push(["Offer price", "<small>" + esc(op.pre) + "</small>" + op.v + (op.u ? "<small>" + op.u + "</small>" : ""), "per share" + (fv(f, "Consideration type") ? " · " + esc(fv(f, "Consideration type").toLowerCase()) : "")]); }
@@ -332,6 +334,8 @@
     /* tabs */
     const tabs = [["overview", "Overview"]];
     if (s) tabs.push(["status", 'Offer status <span class="new">NEW</span>']);
+    const prices = res.prices && Array.isArray(res.prices.rows) && res.prices.rows.length && MAM.prices ? res.prices : null;
+    if (prices) tabs.push(["prices", "Share price"]);
     tabs.push(["financials", "Financials"]);
     if (d.overview || d.profiles || d.background) tabs.push(["commentary", "Commentary"]);
     if (d.financial_notes) tabs.push(["payment", "Payment details"]);
@@ -442,6 +446,8 @@
     panels += docPanel("commentary", "Commentary", [[d.overview, "c-o"], [d.profiles, "c-p"], [d.background, "c-b"]]);
     panels += docPanel("payment", "Payment details", [[d.financial_notes, "p"]]);
     panels += docPanel("target", "Target details", [[d.target_details, "t"]]);
+    /* --- share price --- */
+    if (prices) panels += '<div class="panel" role="tabpanel" data-panel="prices" hidden>' + MAM.prices.card(d, f, prices) + "</div>";
     /* --- source documents --- */
     if (docs.length) panels += '<div class="panel" role="tabpanel" data-panel="docs" hidden>' + docsCard(docs) + "</div>";
     /* --- all fields --- */
@@ -473,6 +479,11 @@
     links.forEach(a => a.classList.toggle("on", a === cur));
   }
   addEventListener("scroll", () => requestAnimationFrame(spy), { passive: true });
+  R.addEventListener("change", e => {
+    if (e.target.id !== "rep-prices" || !e.target.files.length || !current) return;
+    const no = current.deal.deal_number, file = e.target.files[0]; e.target.value = "";
+    MAM.prices.load(file, current.deal, $("#pr-load", R), () => { delete cache[no]; current = null; open(no, "prices"); });
+  });
   R.addEventListener("click", e => {
     const t = e.target.closest(".rtab [data-tab]"); if (t) { show(t.dataset.tab); return; }
     const g = e.target.closest("a[data-go]"); if (g) { e.preventDefault(); show(g.dataset.go); return; }
@@ -505,11 +516,12 @@
     let res = cache[no];
     if (!res) {
       // the sector comparison and the documents are extra: if either fails the report still opens without it
-      const [{ data, error }, cmp, docs] = await Promise.all([MAM.sb.rpc("db_deal", { p_deal_number: no }),
+      const [{ data, error }, cmp, docs, prices] = await Promise.all([MAM.sb.rpc("db_deal", { p_deal_number: no }),
         MAM.sb.rpc("db_sector_comparison", { p_deal: no }).then(r => r.error ? null : r.data, () => null),
-        MAM.sb.rpc("db_deal_documents", { p_deal_number: no }).then(r => r.error ? [] : r.data || [], () => [])]);
+        MAM.sb.rpc("db_deal_documents", { p_deal_number: no }).then(r => r.error ? [] : r.data || [], () => []),
+        MAM.sb.rpc("db_deal_prices", { p_deal_number: no }).then(r => r.error ? null : r.data, () => null)]);
       if (error) { R.innerHTML = '<div class="rep-loading">Could not load deal ' + esc(no) + ": " + esc(error.message) + "</div>"; return; }
-      res = data; if (res) { res.cmp = cmp; res.docs = docs; } cache[no] = res;
+      res = data; if (res) { res.cmp = cmp; res.docs = docs; res.prices = prices; } cache[no] = res;
     }
     if (!res || !res.deal) { R.innerHTML = '<div class="rep-loading">There is no report for deal ' + esc(no) + ' on this site. <a href="#search">Search the DataBase</a>.</div>'; return; }
     if ((location.hash.split("/")[1] || "") !== no) return;     // the user moved on while it loaded
@@ -517,6 +529,7 @@
     try { sessionStorage.setItem("mam-db-deal", no); } catch (e) {}
     R.innerHTML = build(no, res);
     show(tab || "overview", false);
+    if (res.prices && MAM.prices) MAM.prices.mount(R, res.deal, res.deal.fields || {}, res.prices);
     document.title = MAM.tc(res.deal.target) + " · Deal " + no + " · M&A Monitor";
     const nav = $("#rep-nav"); if (nav) nav.textContent = MAM.tc(res.deal.target) + " (" + no + ")";
     MAM.log(no, "view");
