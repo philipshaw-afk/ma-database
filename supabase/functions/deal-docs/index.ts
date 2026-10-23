@@ -1,6 +1,7 @@
 // deal-docs: puts a deal's source documents (press releases, circulars, accounts, other) on the M&A DataBase website.
 // Called by the PC uploader (sync_database_documents.py in the Claude docs folder) and by Claude, never by the website.
-// Every call must carry the upload token in the x-docs-token header; only its SHA-256 is kept (app_secrets 'deal-docs').
+// Every call must carry the upload token in the x-docs-token header; only its SHA-256 is kept (app_secrets 'deal-docs',
+// checked by deal_docs_token_ok()).
 //
 //   GET  ?action=resolve&target=<name>[&date=<YYYY-MM-DD>][&bidder=<name>] -> which DataBase deal a deal folder belongs to
 //   GET  ?action=list&deal=<deal number>                  -> documents already on the site for that deal
@@ -35,14 +36,9 @@ const MIME: Record<string, string> = {
 async function authorised(req: Request) {
   const t = req.headers.get("x-docs-token") || "";
   if (t.length < 24) return false;
-  const { data } = await sb.from("app_secrets").select("secret_sha256").eq("name", "deal-docs").maybeSingle();
-  const want = data?.secret_sha256 as string | undefined;
-  if (!want) return false;
-  const got = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t))))
-    .map((b) => b.toString(16).padStart(2, "0")).join("");
-  let diff = got.length ^ want.length;
-  for (let i = 0; i < Math.min(got.length, want.length); i++) diff |= got.charCodeAt(i) ^ want.charCodeAt(i);
-  return diff === 0;
+  // compared inside the database (deal_docs_token_ok), which keeps only the token's SHA-256 in app_secrets
+  const { data, error } = await sb.rpc("deal_docs_token_ok", { p_token: t });
+  return !error && data === true;
 }
 
 // ------------------------------------------------------------------ matching a deal folder to a deal
