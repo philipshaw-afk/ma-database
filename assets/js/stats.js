@@ -130,39 +130,60 @@ function syncControls(){
   $$('#os-mkt input').forEach(i=>i.checked=S.mkt.has(i.value));
   $('#os-sec').value=S.sec;paintEV();paintYR();paintSP();
   $('#os-out').checked=S.out;
-  if(!S.ws){$('#os-ws').value='';$('#os-ws-not').value='';$$('input[name="os-wsm"]').forEach(i=>i.checked=i.value==='ph');}
+  if(!S.ws){$('#os-ws').value='';$('#os-ws-not').value='';$$('input[name="os-wsm"]').forEach(i=>i.checked=i.value==='ph');$('#os-ws-docs').checked=false;$('#os-ws-go').textContent='Search write-ups';}
   wsShow();
 }
 $('#os-out').addEventListener('change',e=>{S.out=e.target.checked;update(true);});
 
-/* ---------- word search of the deal write-ups (server-side, db_word_search) ---------- */
+/* ---------- word search of the deal write-ups (server-side, db_word_search) and, when ticked, of the deal
+   documents (db_doc_search: the same rules as the Search Form's word search) ---------- */
 const WSM={ph:'Exact phrase',all:'All words',any:'Any word'};
-let wsSeq=0;
+let wsSeq=0,docStat=null;
+const pl=(n,w)=>nf(n)+' '+w+(n===1?'':'s');
 function wsShow(msg){
   const nWU=D.filter(r=>hasWU(r.no)).length;
   $('#os-ws-clr').hidden=!S.ws&&!$('#os-ws').value&&!$('#os-ws-not').value;
-  $('#os-ws-st').innerHTML=msg!=null?msg:S.ws?(()=>{const h=D.filter(r=>S.ws.nos.has(r.no)&&pass(r,S,true,true)).length,w=S.uni==='all'?'offer':'firm offer';return 'Found in <b>'+nf(S.ws.hits)+'</b> write-up'+(S.ws.hits===1?'':'s')+' on the DataBase; <b>'+nf(h)+'</b> of them '+(h===1?'is a '+w:'are '+w+'s')+' in these statistics.';})():'';
-  $('#os-ws-h').textContent='Searches the deal write-ups on the DataBase, which cover '+nf(nWU)+' of the '+nf(D.length)+' offers here'+(nWU<D.length/2?' (mostly recent ones)':'')+'. Offers without a write-up drop out while a search is set.';
+  $('#os-ws-st').innerHTML=msg!=null?msg:S.ws?(()=>{const h=D.filter(r=>S.ws.nos.has(r.no)&&pass(r,S,true,true)).length,w=S.uni==='all'?'offer':'firm offer';
+    const found=S.ws.docs?'Found in <b>'+nf(S.ws.nRep)+'</b> write-up'+(S.ws.nRep===1?'':'s')+' and in the documents of <b>'+nf(S.ws.docs.size)+'</b> deal'+(S.ws.docs.size===1?'':'s')+' on the DataBase (<b>'+nf(S.ws.hits)+'</b> deal'+(S.ws.hits===1?'':'s')+' in all)'
+      :'Found in <b>'+nf(S.ws.hits)+'</b> write-up'+(S.ws.hits===1?'':'s')+' on the DataBase';
+    return found+'; <b>'+nf(h)+'</b> of them '+(h===1?'is a '+w:'are '+w+'s')+' in these statistics.';})():'';
+  const dk=$('#os-ws-docs').checked;
+  $('#os-ws-h').textContent='Searches the deal write-ups on the DataBase, which cover '+nf(nWU)+' of the '+nf(D.length)+' offers here'+(nWU<D.length/2?' (mostly recent ones)':'')+'. Offers without a write-up drop out while a search is set.'+
+    (dk?' Deal documents: in a document each of the words must appear somewhere in it and an exact phrase on one page'+(docStat?'; '+pl(docStat.done,'document')+' on '+pl(docStat.deals,'deal')+' can be searched so far'+(docStat.pending?' ('+docStat.pending+' still being read)':''):'')+'.':'');
+}
+async function loadDocStat(){
+  if(docStat&&Date.now()-docStat.at<60000)return;
+  const {data,error}=await window.MAM.sb.rpc('db_doc_text_stats');
+  if(!error&&data){docStat={...data,at:Date.now()};wsShow();}
 }
 async function runWs(){
   const q=$('#os-ws').value.trim(),nt=$('#os-ws-not').value.trim(),mode=(document.querySelector('input[name="os-wsm"]:checked')||{}).value||'ph';
+  const docs=$('#os-ws-docs').checked;
   const seq=++wsSeq;
   if(!q&&!nt){S.ws=null;wsShow();update();return;}
   const args={p_all:null,p_phrase:null,p_any:null,p_not:nt||null};
   if(q){if(mode==='ph')args.p_phrase=q;else if(mode==='all')args.p_all=q;else args.p_any=q.split(q.includes(',')?/\s*,\s*/:/\s+/).filter(Boolean);}
-  $('#os-ws-go').disabled=true;wsShow('<span class="spin" aria-hidden="true"></span> Searching the write-ups…');
+  $('#os-ws-go').disabled=true;wsShow('<span class="spin" aria-hidden="true"></span> Searching the write-ups'+(docs?' and the deal documents':'')+'…');
   try{
-    const {data,error}=await window.MAM.sb.rpc('db_word_search',args);
+    const [rep,dr]=await Promise.all([window.MAM.sb.rpc('db_word_search',args),docs&&q?window.MAM.sb.rpc('db_doc_search',args):Promise.resolve({data:[]})]);
     if(seq!==wsSeq)return;
+    const error=rep.error||dr.error;
     if(error){wsShow('<span class="err">Word search failed: '+esc(error.message)+'</span>');return;}
-    const nos=new Set((data||[]).map(x=>typeof x==='string'?x:x&&(x.db_word_search||Object.values(x)[0])));
+    const repNos=new Set((rep.data||[]).map(x=>typeof x==='string'?x:x&&(x.db_word_search||Object.values(x)[0])));
+    // deal number -> the documents that matched (best pages first), for the marker in the deal list
+    const dm=docs?new Map():null;
+    if(dm)(dr.data||[]).forEach(x=>{if(!dm.has(x.deal_number))dm.set(x.deal_number,[]);dm.get(x.deal_number).push(x);});
+    const nos=new Set([...repNos,...(dm?dm.keys():[])]);
     const lab=(q?(mode==='ph'?'“'+q+'”':WSM[mode].toLowerCase()+': '+q):'')+(nt?(q?' · ':'')+'not '+nt:'');
-    S.ws={nos,q,nt,mode,hits:nos.size,label:'Write-up: '+lab};
+    S.ws={nos,q,nt,mode,hits:nos.size,nRep:repNos.size,rep:repNos,docs:dm,label:(docs?'Write-up or documents: ':'Write-up: ')+lab};
     wsShow();update();
   }catch(e){if(seq===wsSeq)wsShow('<span class="err">Word search failed: '+esc(e.message||e)+'</span>');}
   finally{if(seq===wsSeq)$('#os-ws-go').disabled=false;}
 }
 $('#os-ws-f').addEventListener('submit',e=>{e.preventDefault();runWs();});
+// ticking / unticking the documents box re-runs a search that is already set
+const goLab=()=>{$('#os-ws-go').textContent=$('#os-ws-docs').checked?'Search write-ups + documents':'Search write-ups';};
+$('#os-ws-docs').addEventListener('change',e=>{if(e.target.checked)loadDocStat();goLab();wsShow();if(S.ws)runWs();});
 $('#os-ws-clr').addEventListener('click',()=>{wsSeq++;$('#os-ws').value='';$('#os-ws-not').value='';$('#os-ws-go').disabled=false;const had=!!S.ws;S.ws=null;wsShow();if(had)update();});
 ['#os-ws','#os-ws-not'].forEach(s=>$(s).addEventListener('input',()=>{$('#os-ws-clr').hidden=!S.ws&&!$('#os-ws').value&&!$('#os-ws-not').value;}));
 $$('input[name="os-uni"]').forEach(i=>i.addEventListener('change',()=>{S.uni=i.value;update();}));
@@ -293,7 +314,7 @@ function update(keep){
   {const a=[...S.att].sort().join();$$('#os-att-pre button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.p==='all'?S.att.size===ATT.length:b.dataset.p==='fr'?a==='Fr':a==='Ho,IH')));}
   $('#os-warn').innerHTML=O.n>0&&O.n<10?'<div class="os-warn">Small sample: only '+O.n+' offer'+(O.n>1?'s':'')+' match these criteria, so treat the percentages with care.</div>':'';
   if(!O.n){
-    $('#os-kpis').innerHTML='<div class="card os-empty" style="grid-column:1/-1">'+(T.length?'Every offer matching these criteria is unticked. Tick deals in the list below to bring them back into the figures.':S.ws&&!D.some(r=>S.ws.nos.has(r.no)&&pass(r,S,true,true))?'None of the offers in these statistics has a write-up matching the word search.':'No offers match these criteria. Widen the equity value or year range, or reset the criteria.')+'</div>';
+    $('#os-kpis').innerHTML='<div class="card os-empty" style="grid-column:1/-1">'+(T.length?'Every offer matching these criteria is unticked. Tick deals in the list below to bring them back into the figures.':S.ws&&!D.some(r=>S.ws.nos.has(r.no)&&pass(r,S,true,true))?'None of the offers in these statistics has a write-up'+(S.ws.docs?' or document':'')+' matching the word search.':'No offers match these criteria. Widen the equity value or year range, or reset the criteria.')+'</div>';
     ['#os-comp','#os-inc','#os-yc','#os-hc'].forEach(s=>$(s).innerHTML='<div class="os-empty">No matching offers</div>');
     $('#os-comp-s').textContent='';$('#os-hc-s').textContent='';$('#os-yr-lgd').innerHTML='';if(!keep)shown=25;renderTable();return;
   }
@@ -345,8 +366,11 @@ function renderTable(){
   const body=rows.slice(0,shown).map(r=>{
     const stc=r.s==='X'?'Proposed':ST[r.s],off=S.ex.has(r.no),po=isOut(r,'pr',O),io=isOut(r,'ip',O);
     const tn=hasWU(r.no)?'<a class="tn" href="#deal/'+esc(r.no)+'" title="Open the deal write-up">'+esc(r.t)+'</a>':'<div class="tn">'+esc(r.t)+'</div>';
+    // word search with documents ticked: where the words were found (the deal report's Documents tab has the files)
+    const dl=S.ws&&S.ws.docs&&S.ws.docs.get(r.no);
+    const dmk=dl?' <a class="os-wsd'+(S.ws.rep.has(r.no)?'':' only')+'" href="#deal/'+esc(r.no)+'" title="'+esc((S.ws.rep.has(r.no)?'Found in the write-up and in: ':'Found only in the documents: ')+dl.map(x=>x.file_name.replace(/\.[a-z0-9]{2,5}$/i,'')+(/\.pdf$/i.test(x.file_name)&&x.pages&&x.pages.length?' (p. '+x.pages.slice(0,3).join(', ')+')':'')).join('; '))+'">'+(S.ws.rep.has(r.no)?'+ ':'')+pl(dl.length,'document')+'</a>':'';
     return '<tr'+(off?' class="off"':'')+'><td class="ck"><input type="checkbox" data-no="'+esc(r.no)+'"'+(off?'':' checked')+' aria-label="Include '+esc(r.t)+(r.b?' / '+esc(r.b):'')+' in the figures"></td>'+
-    '<td><span class="dt">'+fd(r.d)+'</span></td><td>'+tn+'<div class="bn">'+esc(r.b||'—')+'</div></td>'+
+    '<td><span class="dt">'+fd(r.d)+'</span></td><td>'+tn+'<div class="bn">'+esc(r.b||'—')+dmk+'</div></td>'+
     '<td><span class="stat stat-'+stc+'">'+ST[r.s]+(r.lv?' · live':'')+'</span></td>'+
     '<td><span class="os-att'+(r.a==='Ho'||r.a==='IH'?' h':'')+'">'+(r.a?ATTN[r.a]:'<span class="muted">—</span>')+'</span></td>'+
     '<td class="r num'+(r.ev==null?' muted':'')+'">'+(r.ev==null?'—':nf(r.ev,1))+'</td>'+
