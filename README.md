@@ -7,7 +7,7 @@ A login-only client site built from the integrated-site mockup (`mamonitorintegr
 | Area | What it shows | Where the data comes from |
 |---|---|---|
 | **M&A DataBase › Home** | Pending public offers dashboard, deal lookup, your recently viewed / downloaded reports, recently added deals | `db_deal_index()`, `db_offer_events`, `db_activity` |
-| **Search Form / Search Results** | Parties, deal parameters, values, financials, word search of the report text, offer-status and country-specific fields; CSV downloads | `db_deal_index()` (filtered in the browser), `db_word_search()` (full-text search on the server) |
+| **Search Form / Search Results** | Parties, deal parameters, values, financials, word search of the report text (and, with the *Also search inside the deal documents* tick box, of the deal documents, shown under each deal with the document, page and a highlighted extract), offer-status and country-specific fields; CSV downloads | `db_deal_index()` (filtered in the browser), `db_word_search()` (full-text search on the server), `db_doc_search()` / `db_doc_snippets()` / `db_doc_text_stats()` |
 | **Deal report** | New-format report: KPIs, offer status, transaction, key dates, valuation, advisers, financials, commentary, payment details, all fields; PDF download | `db_deal()`; PDFs from the private `deal-files` bucket (`exports/…`) via short-lived signed links |
 | **Documents** (tab on each deal report) | The deal's source documents grouped as Press releases / Circulars / Accounts / Other, with date (period end for accounts), size, open (PDFs in a new tab) and download; tab only shows when a deal has documents | `db_deal_documents()`; files in the private `deal-files` bucket under `docs/<deal number>/…` via short-lived signed links; put there by the `deal-docs` edge function (PC uploader / Claude) |
 | **Share price** (tab on each deal report) | The target's daily close (1Y default; 3M–All), with the offer price, announcement and pre-bid speculation dates; hover/arrow-key readout with the offer premium; Key prices table (latest, 1 day … 3 months before, 30-day average, pre-bid speculation, 52-week high/low) using the same conventions as the recorded bid premia; tab only shows when the deal has prices. Admins load a Morningstar download (CSV, one RIC) with the **Share prices** button in the report header | `db_deal_prices()`, `db_admin_load_prices()`; tables `share_prices` (by RIC and date), `price_securities`, `deal_tickers` (deal → RIC) |
@@ -48,6 +48,8 @@ assets/js/main.js          data loading
 assets/js/vendor/          supabase-js 2.45.4 (self-hosted)
 supabase/functions/db-admin/index.ts   user-management edge function (deployed)
 supabase/functions/deal-docs/index.ts  document upload edge function (deployed; resolve / list / sign + register / upload / delete)
+supabase/functions/doc-text/          reads the documents' text for the word search (deployed; run / status / redo)
+supabase/sql/2026-10-23_document_text_search.sql   tables, queue and search functions for the document word search
 ```
 
 ## Deal documents (how they get there)
@@ -59,6 +61,16 @@ supabase/functions/deal-docs/index.ts  document upload edge function (deployed; 
 * straight away for any folder with a new `_docs_ready.json` (forces a resend).
 
 The deal is found from Claude.txt (Target Company + Date Announced + Bidder must all agree, so an older deal for the same target is never picked); a `_database_deal.txt` holding the 7-digit deal number overrides it. Each folder gets `_docs_synced.json` recording what was sent or why it is waiting. Files go straight to storage on a signed upload link, then are recorded in `deal_documents`. Only folders uploaded to the admin site from 23-10-2026 are picked up automatically; `python sync_database_documents.py --since YYYY-MM-DD` backfills older ones.
+
+## Word search inside the documents
+
+Nothing needs doing by hand: every document that reaches `deal_documents` (by the PC uploader or Claude) is read automatically.
+
+* `deal_documents` inserts / replacements kick the `doc-text` edge function through `pg_net` (`doc_text_kick()`), and the pg_cron job `doc-text-sweep` kicks it every 2 minutes while anything is waiting. A replaced file is read again (its old text is deleted first).
+* `doc-text` reads one chunk per call: PDFs page by page with pdf.js (as many pages as fit in about a second, so a 400-page annual report takes several calls inside the 2s CPU limit), Word files in parts of about 2,500 words, PowerPoint files slide by slide. Old .doc / .xls / .ppt and Excel files are skipped. Up to 3 documents are read at once, smallest first.
+* The text goes into `deal_document_pages` (one row per page / part / slide, `english` full-text index, same as the report search). `deal_documents.text_status` shows `pending`, `done`, `no_text` (a scan with no text layer), `skipped` or `failed` (`text_error` says why).
+* Searching: in a document each of *all these words* must appear somewhere in it and the *exact phrase* on one page; a document with an unwanted word is left out, and unwanted words in the deal's own report rule the deal out (as in the report search). Results list the deal's announcements and circulars before its accounts, with up to 7 matching pages each; PDFs open in a new tab at the page (`#page=N`).
+* Checking / redoing (needs the `x-docs-token` header, the deal-docs upload token works): `GET …/functions/v1/doc-text?action=status`; `POST …/functions/v1/doc-text?action=redo&deal=0044819` (or `&id=<document id>`).
 
 ## One-time Supabase setting
 

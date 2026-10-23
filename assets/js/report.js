@@ -261,6 +261,7 @@
     s = s.replace(/(^|\s)\d{2}-\d{2}-\d{2}(?=\s|$)/g, " ").replace(/\s+/g, " ").trim();
     return { title: s || n, tags };
   }
+  MAM.docTitle = docTitle; MAM.docType = docType;      // also used by the word search results (database.js)
   function docsCard(docs) {
     const groups = DOC_DIRS.map(([dir, when]) => [dir, when, docs.filter(x => x.dir === dir)]).filter(g => g[2].length);
     const body = groups.map(([dir, when, list]) => '<div class="dgrp"><div class="sh">' + esc(dir) + " <span>" + list.length + "</span></div>" +

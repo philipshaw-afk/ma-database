@@ -209,23 +209,49 @@
     e.preventDefault(); resetForm(); PRESETS[b.dataset.preset](); live(); location.hash = "#results"; if (location.hash === "#results") MAM.hooks["show:results"]();
   });
 
-  /* word search runs on the server against the full report text */
-  const wsKey = () => ["ws-all", "ws-exact", "ws-or1", "ws-or2", "ws-or3", "ws-not"].map(i => $("#" + i).value.trim()).join("\u0001");
-  let wsCache = { key: "", set: null }, wsPending = null;
+  /* word search runs on the server against the full report text and, when ticked, the text of the deal documents
+     (db_doc_search: one row per matching document, with its best pages) */
+  const wsWords = () => ["ws-all", "ws-exact", "ws-or1", "ws-or2", "ws-or3", "ws-not"].map(i => $("#" + i).value.trim()).join("\u0001");
+  const wsDocs = () => { const c = $("#ws-docs"); return !!(c && c.checked); };
+  const wsKey = () => wsWords();
+  const plural = (n, w) => n.toLocaleString("en-GB") + " " + w + (n === 1 ? "" : "s");
+  let wsCache = { key: "", set: null, hits: null }, wsPending = null;
+  MAM.wsHits = null;
   async function wordSet() {
-    const k = wsKey(); if (!k.replace(/\u0001/g, "")) return null;
-    if (wsCache.key === k) return wsCache.set;
+    const words = wsWords(); if (!words.replace(/\u0001/g, "")) { MAM.wsHits = null; return null; }
+    const docs = wsDocs(), k = words + "\u0001" + (docs ? "docs" : "");
+    if (wsCache.key === k) { MAM.wsHits = wsCache.hits; return wsCache.set; }
     if (wsPending && wsPending.k === k) return wsPending.p;
     const p = (async () => {
-      $("#ws-st").textContent = "Searching the report text…";
+      $("#ws-st").textContent = docs ? "Searching the report text and the deal documents…" : "Searching the report text…";
       const v = id => $("#" + id).value.trim() || null;
-      const { data, error } = await MAM.sb.rpc("db_word_search", { p_all: v("ws-all"), p_phrase: v("ws-exact"), p_any: ["ws-or1", "ws-or2", "ws-or3"].map(v).filter(Boolean), p_not: v("ws-not") });
-      if (error) { $("#ws-st").textContent = "Word search failed: " + error.message; return new Set(); }
-      const set = new Set(data || []); wsCache = { key: k, set };
-      $("#ws-st").textContent = set.size + " report" + (set.size === 1 ? "" : "s") + " match the words.";
+      const args = { p_all: v("ws-all"), p_phrase: v("ws-exact"), p_any: ["ws-or1", "ws-or2", "ws-or3"].map(v).filter(Boolean), p_not: v("ws-not") };
+      const [rep, dr] = await Promise.all([MAM.sb.rpc("db_word_search", args), docs ? MAM.sb.rpc("db_doc_search", args) : Promise.resolve({ data: [] })]);
+      const err = rep.error || dr.error;
+      if (err) { $("#ws-st").textContent = "Word search failed: " + err.message; MAM.wsHits = null; return new Set(); }
+      const repSet = new Set(rep.data || []), byDeal = new Map();
+      (dr.data || []).forEach((x, i) => { x._i = i; if (!byDeal.has(x.deal_number)) byDeal.set(x.deal_number, []); byDeal.get(x.deal_number).push(x); });
+      // the deal's own announcements and circulars first, accounts last; within each, best match first (server order)
+      const DIR_ORDER = { "Press releases": 0, "Circulars": 1, "Other": 2, "Accounts": 3 };
+      byDeal.forEach(l => l.sort((a, b) => (DIR_ORDER[a.directory] ?? 2) - (DIR_ORDER[b.directory] ?? 2) || a._i - b._i));
+      const set = new Set([...repSet, ...byDeal.keys()]);
+      const hits = docs ? { key: k, rep: repSet, docs: byDeal, args, nDocs: (dr.data || []).length } : null;
+      wsCache = { key: k, set, hits }; MAM.wsHits = hits;
+      const match = plural(repSet.size, "report") + (repSet.size === 1 ? " matches" : " match") + " the words";
+      $("#ws-st").textContent = !docs ? match + "."
+        : match + ", and documents on " + plural(byDeal.size, "deal") + " (" + plural(hits.nDocs, "document") + "): " + plural(set.size, "deal") + " in all.";
       return set;
     })();
     wsPending = { k, p }; const s = await p; wsPending = null; return s;
+  }
+  /* how much of the documents can be searched (under the tick box) */
+  let docStatsAt = 0;
+  async function docStats() {
+    if (Date.now() - docStatsAt < 60000) return; docStatsAt = Date.now();
+    const { data, error } = await MAM.sb.rpc("db_doc_text_stats"); if (error || !data) return;
+    const el = $("#ws-docs-n");
+    el.textContent = "Searchable now: " + plural(data.done, "document") + " on " + plural(data.deals, "deal") + " (" + plural(data.pages, "page") + ")" +
+      (data.pending ? "; " + data.pending + " still being read" : "") + (data.no_text ? "; " + plural(data.no_text, "file") + " without readable text (scans or other file types)" : "") + ".";
   }
 
   async function readAndFilter() {
@@ -268,7 +294,7 @@
      ["fn-evs", "EV/Sales", d => d.ev_sales], ["fn-evebitda", "EV/EBITDA", d => d.ev_ebitda], ["fn-pe", "P/E", d => d.pe], ["fn-pb", "P/B", d => d.pb]]
       .forEach(([id, l, g]) => { const r = rid(id); if (on(r)) { C(l, (r[0] ?? "") + "–" + (r[1] ?? "")); f.push(d => inR(g(d), r)); } });
     /* Word search (server) */
-    const ws = await wordSet(); if (ws) { C("Words", wsKey().split("\u0001").filter(Boolean).join(" · ")); f.push(d => ws.has(d.deal_no)); } else $("#ws-st").textContent = "";
+    const ws = await wordSet(); if (ws) { C(wsDocs() ? "Words (reports + documents)" : "Words", wsKey().split("\u0001").filter(Boolean).join(" · ")); f.push(d => ws.has(d.deal_no)); } else $("#ws-st").textContent = "";
     /* Offer status (pending-offers database) */
     const st = chips($("#pdb-struct")); if (st.length) { C("Structure", st.join(", ")); f.push(d => st.includes(d.offer_structure)); }
     const cu = chips($("#pdb-cstat")); if (cu.length) { C("Current status", cu.join(", ")); f.push(d => d.has_status && cu.some(x => String(d.current_status || "").startsWith(x.split(" - ")[0]))); }
@@ -314,6 +340,7 @@
       $$("[data-clear]", form).forEach(x => x.disabled = !r.crit.length);
       $$(".pdb-c").forEach(b => b.classList.toggle("on", [...b.querySelectorAll("input")].some(i => i.type === "radio" ? (i.checked && i.value !== "") : i.type === "checkbox" ? i.checked : i.value.trim() !== "")));
     }, 160);
+    const dh = $("#ws-docs-h"); if (dh) { dh.hidden = !wsDocs(); if (wsDocs()) docStats(); }
   }
   form.addEventListener("input", live); form.addEventListener("change", live);
   // Clear search (top and bottom of the form): every criterion on every tab back to its default, and back to the first tab
@@ -344,6 +371,60 @@
   };
   const sel = new Set();
   const sorted = () => [...cur].sort((a, b) => { let x = a[sortK], y = b[sortK]; const nx = x == null || x === "", ny = y == null || y === ""; if (nx && ny) return 0; if (nx) return 1; if (ny) return -1; if (typeof x === "string") return x.localeCompare(y) * sortD; return (x - y) * sortD; });
+  /* ---------- word search in the deal documents: a line under each deal saying where the words were found ---------- */
+  const WSD_SHOW = 3, wsdOpen = new Set(), snipCache = new Map();
+  const dType = n => MAM.docType ? MAM.docType(n) : ["pdf", "PDF"];
+  const dTitle = n => MAM.docTitle ? MAM.docTitle(n) : { title: n, tags: [] };
+  const wsdList = d => { const H = MAM.wsHits; const l = H && H.docs.get(d.deal_no); return l && l.length ? l : null; };
+  const fmtSnip = s => esc(String(s || "").replace(/\s+/g, " ").trim()).replace(//g, "<mark>").replace(//g, "</mark>");
+  function wsdRow(d, n) {
+    const list = wsdList(d); if (!list) return "";
+    const H = MAM.wsHits, open = wsdOpen.has(d.deal_no);
+    const items = (open ? list : list.slice(0, WSD_SHOW)).map(x => {
+      const t = dTitle(x.file_name), ft = dType(x.file_name), pdf = ft[0] === "pdf", ppt = ft[0] === "ppt";
+      const pages = x.pages || [], best = pages[0], also = pages.slice(1, 7), more = Math.max(0, (x.hits || 0) - 1 - also.length);
+      const link = (p, txt, cls) => '<a href="#" class="' + (cls || "") + '" data-wsdoc="' + x.document_id + '"' + (p ? ' data-page="' + p + '"' : "") + ' title="' + (pdf ? "Open " + esc(x.file_name) + (p ? " at page " + p : "") : "Download " + esc(x.file_name)) + '">' + txt + "</a>";
+      const sk = H.key + "|" + x.document_id + ":" + best;
+      const where = pdf ? (best ? link(best, "p. " + best, "pg") + (also.length ? ' <span>also</span> ' + also.map(p => link(p, p)).join(", ") : "") + (more ? " <span>+ " + plural(more, "more page") + "</span>" : "") : "")
+        : ppt ? (best ? "slide " + best + (also.length ? ", " + also.join(", ") : "") + (more ? " +" + more : "") : "") : "";
+      return '<li><span class="ft ' + ft[0] + '">' + ft[1] + '</span><div class="wsd-b"><div class="wsd-t">' + link(pdf ? best : null, esc(t.title)) +
+        t.tags.map(g => '<span class="tg">' + esc(g) + "</span>").join("") + '<span class="wsd-m">' + esc(x.directory) + (x.doc_date ? " · " + esc(MAM.isoToUk(x.doc_date)) : "") + "</span></div>" +
+        (best ? '<div class="wsd-s" data-snip="' + x.document_id + ":" + best + '">' + (snipCache.has(sk) ? fmtSnip(snipCache.get(sk)) : '<span class="wsd-ld">Loading the extract…</span>') + "</div>" : "") +
+        (where ? '<div class="wsd-p">' + where + "</div>" : "") + "</div></li>";
+    }).join("");
+    const head = '<div class="wsd-h">' + (H.rep.has(d.deal_no) ? '<span class="wsd-k ok">Also in the report text</span>' : '<span class="wsd-k">Only in the documents</span>') +
+      "<span>Found in " + plural(list.length, "document") + "</span></div>";
+    const tog = list.length > WSD_SHOW ? '<button type="button" class="btn ghost sm wsd-more" data-wsmore="' + d.deal_no + '">' + (open ? "Show fewer" : "Show all " + list.length + " documents") + "</button>" : "";
+    return '<tr class="wsd-row"><td></td><td colspan="' + (n - 1) + '"><div class="wsd">' + head + "<ul>" + items + "</ul>" + tog + "</div></td></tr>";
+  }
+  /* extracts are fetched only for the deals on screen */
+  async function loadSnips() {
+    const H = MAM.wsHits; if (!H) return;
+    const els = $$("#t-results [data-snip]"), need = new Map();
+    els.forEach(e => { const k = H.key + "|" + e.dataset.snip; if (snipCache.has(k)) e.innerHTML = fmtSnip(snipCache.get(k)); else need.set(e.dataset.snip, true); });
+    if (!need.size) return;
+    const pairs = [...need.keys()].map(s => s.split(":"));
+    const { data, error } = await MAM.sb.rpc("db_doc_snippets", { p_docs: pairs.map(p => p[0]), p_pages: pairs.map(p => +p[1]), p_all: H.args.p_all, p_phrase: H.args.p_phrase, p_any: H.args.p_any });
+    if (error) { console.warn("extracts:", error.message); }
+    (data || []).forEach(r => snipCache.set(H.key + "|" + r.document_id + ":" + r.page, r.snippet));
+    pairs.forEach(p => { const k = H.key + "|" + p[0] + ":" + p[1]; if (!snipCache.has(k)) snipCache.set(k, ""); });
+    if (MAM.wsHits !== H) return;
+    $$("#t-results [data-snip]").forEach(e => { const k = H.key + "|" + e.dataset.snip; if (snipCache.has(k)) e.innerHTML = fmtSnip(snipCache.get(k)); });
+  }
+  /* open a document (PDFs in a new tab at the page) */
+  async function openWsDoc(id, page) {
+    let x = null; if (MAM.wsHits) MAM.wsHits.docs.forEach(l => l.forEach(y => { if (y.document_id === id) x = y; }));
+    if (!x) return;
+    const inline = dType(x.file_name)[0] === "pdf";
+    const w = inline ? window.open("", "_blank") : null;      // opened inside the click so it is not blocked
+    const { data, error } = await MAM.sb.storage.from(MAM_CONFIG.pdfBucket).createSignedUrl(x.path, 300, inline ? undefined : { download: x.file_name });
+    if (error || !data) { if (w) w.close(); MAM.toast("Could not fetch the document: " + (error ? error.message : "unknown error"), true); return; }
+    const url = data.signedUrl + (inline && page ? "#page=" + page : "");
+    if (w) { try { w.opener = null; } catch (e) {} w.location.href = url; }
+    else { const a = document.createElement("a"); a.href = url; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove(); }
+    MAM.log(x.deal_number, "doc");
+  }
+
   function render() {
     cur.forEach(d => { d._kd = keyDate(d).t; });
     const rows = sorted();
@@ -352,16 +433,18 @@
     const bar = v => v == null ? "" : '<span class="bar"><i style="width:' + Math.max(0, Math.min(100, v)) + '%"></i></span>';
     const rep = d => '<div class="ibs">' + (d.has_report ? '<a class="ib" href="#deal/' + d.deal_no + '" title="Open the full deal report">' + ICON.view + "</a>" : '<span class="ib off" title="No report on this site yet">' + ICON.view + "</span>") + (d.pdf ? '<a class="ib" href="#" data-pdf="' + d.deal_no + '" title="Download the PDF report">' + ICON.pdf + "</a>" : "") + '<a class="ib" href="#" data-csv="' + d.deal_no + '" title="Export this deal (CSV)">' + ICON.dl + "</a></div>";
     const selc = d => '<td class="c"><input type="checkbox" data-sel="' + d.deal_no + '"' + (sel.has(d.deal_no) ? " checked" : "") + ' aria-label="Select deal ' + d.deal_no + '" style="accent-color:var(--a)"></td>';
-    const body = rows.slice(0, shown).map((d, i) => {
-      const lead = '<tr class="pdb-row" data-dno="' + d.deal_no + '"><td class="r"><span class="dt">' + (i + 1) + '</span></td><td class="nm" title="' + esc(d.target) + '">' + esc(trunc(d.target, 30)) + '</td><td title="' + esc((d.bidding_sub ? d.bidding_sub + " / " : "") + d.bidder) + '">' + esc(trunc(d.bidder, 28)) + '</td><td><a class="dno" href="#deal/' + d.deal_no + '">' + d.deal_no + '</a></td><td><span class="dt">' + esc(d.date_announced || "—") + "</span></td>";
+    const rowHtml = (d, i) => {
+      const lead = '<tr class="pdb-row' + (wsdList(d) ? " has-wsd" : "") + '" data-dno="' + d.deal_no + '"><td class="r"><span class="dt">' + (i + 1) + '</span></td><td class="nm" title="' + esc(d.target) + '">' + esc(trunc(d.target, 30)) + '</td><td title="' + esc((d.bidding_sub ? d.bidding_sub + " / " : "") + d.bidder) + '">' + esc(trunc(d.bidder, 28)) + '</td><td><a class="dno" href="#deal/' + d.deal_no + '">' + d.deal_no + '</a></td><td><span class="dt">' + esc(d.date_announced || "—") + "</span></td>";
       if (view === "deal") {
         return lead + "<td>" + esc(d.target_country || "—") + '</td><td title="' + esc(d.deal_type) + '">' + esc(trunc(d.deal_type, 26) || "—") + '</td><td><span class="stat stat-' + esc((d.deal_status || "Pending").split(" ")[0]) + '">' + esc(d.deal_status || "—") + '</span></td><td class="r">' + money(d.equity_value, d.currency) + '</td><td class="r">' + (d.equity_value_gbp == null ? '<span class="muted">—</span>' : '<span class="num">' + nf(d.equity_value_gbp, d.equity_value_gbp >= 100 ? 0 : 1) + "</span>") + "</td><td>" + rep(d) + "</td>" + selc(d) + "</tr>";
       }
       if (!d.has_status) return lead + '<td colspan="8" class="muted" style="font-size:11.5px">No offer-status record (' + (d.pub ? "public" : "private") + " deal · " + esc(d.deal_status || "—") + ")</td><td>" + rep(d) + "</td>" + selc(d) + "</tr>";
       const k = keyDate(d), stc = /^Unconditional/.test(d.current_status || "") ? "Unconditional" : (d.current_status || "Pending"), rg = RGC[d.regulatory_status];
       return lead + "<td>" + esc(d.regime || "—") + '</td><td title="' + esc(d.offer_structure) + '">' + esc(SHORT[d.offer_structure] || d.offer_structure || "—") + '</td><td><span class="stat stat-' + esc(stc.split(" ")[0]) + '" title="' + esc(d.current_status_note || "") + '">' + esc(stc) + '</span></td><td class="pc" title="' + esc("Stake " + pct(d.pct_existing_stake) + " · SPA " + pct(d.pct_spa) + " · Irrevocables/LOIs " + pct(d.pct_irrevocables)) + '">' + pct(d.pct_agreed_total) + bar(d.pct_agreed_total) + '</td><td class="pc" title="' + esc(d.acceptance_threshold_text || "") + '">' + thrTxt(d) + '</td><td class="kd">' + (k.s ? '<span class="dt">' + esc(k.s) + "</span><small>" + k.l + "</small>" : '<span class="muted">—</span>') + '</td><td title="' + esc(d.regulatory_detail || "") + '">' + (rg ? '<span class="pdtg ' + rg[0] + '">' + rg[1] + "</span>" : '<span class="muted">—</span>') + '</td><td class="pc" title="' + esc((d.acceptances_date ? "At " + d.acceptances_date + ". " : "") + (d.acceptances_note || "")) + '">' + (d.acceptances_pct == null || d.acceptances_pct === "" ? '<span class="muted">—</span>' : pct(d.acceptances_pct)) + "</td><td>" + rep(d) + "</td>" + selc(d) + "</tr>";
-    }).join("");
+    };
+    const body = rows.slice(0, shown).map((d, i) => rowHtml(d, i) + wsdRow(d, cols.length)).join("");
     $("#t-results").innerHTML = thd + "<tbody>" + (body || '<tr><td colspan="' + cols.length + '"><div class="pdb-empty">No deals match these criteria. <a href="#search">Back to Search Criteria</a></div></td></tr>') + "</tbody>";
+    loadSnips();
     const all = $("#pdb-all"); if (all) all.checked = cur.length > 0 && cur.every(d => sel.has(d.deal_no));
     MAM.odo($("#r-odo"), cur.length);
     $("#pdb-rows").textContent = cur.length ? "1–" + Math.min(shown, cur.length) + " of " + cur.length : "0";
@@ -384,6 +467,8 @@
     if (e.target.id === "pdb-all") { cur.forEach(d => e.target.checked ? sel.add(d.deal_no) : sel.delete(d.deal_no)); render(); return; }
     const sb = e.target.closest("[data-sel]"); if (sb) { sb.checked ? sel.add(sb.dataset.sel) : sel.delete(sb.dataset.sel); return; }
     const c = e.target.closest("[data-csv]"); if (c) { e.preventDefault(); download([MAM.byNo[c.dataset.csv]], "deal_" + c.dataset.csv + ".csv", "deal"); MAM.log(c.dataset.csv, "csv"); return; }
+    const wd = e.target.closest("[data-wsdoc]"); if (wd) { e.preventDefault(); openWsDoc(wd.dataset.wsdoc, wd.dataset.page ? +wd.dataset.page : null); return; }
+    const wm = e.target.closest("[data-wsmore]"); if (wm) { const no = wm.dataset.wsmore; wsdOpen.has(no) ? wsdOpen.delete(no) : wsdOpen.add(no); render(); return; }
     if (e.target.closest("a,input,button")) return;
     const tr = e.target.closest("tr.pdb-row"); if (tr && MAM.byNo[tr.dataset.dno] && MAM.byNo[tr.dataset.dno].has_report) location.hash = "#deal/" + tr.dataset.dno;
   });

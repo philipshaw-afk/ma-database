@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@500;700;800&family=Source+Serif+4:ital,opsz,wght@1,8..60,700&display=swap">
 <link rel="stylesheet" href="assets/css/base.css?v=1">
-<link rel="stylesheet" href="assets/css/site.css?v=9">
+<link rel="stylesheet" href="assets/css/site.css?v=10">
 </head>
 <body>
 <div class="mesh" aria-hidden="true"></div>
@@ -261,6 +261,10 @@
     <div class="card-bd" id="p-5" role="tabpanel" hidden>
       <div class="stack" style="gap:16px;max-width:760px">
         <div class="tips"><b>Search within the report commentary</b> (overview, profiles of the parties, background and payment details). Search is not case sensitive and matches word forms: <code>acquisition</code> also finds <code>acquisitions</code>. It is not necessary to use all the boxes.</div>
+        <div class="ws-docs">
+          <label class="ws-docs-ck"><input type="checkbox" id="ws-docs"><span><b>Also search inside the deal documents</b>: announcements, circulars, accounts and other filings on each deal's Documents tab</span></label>
+          <div class="ws-docs-h" id="ws-docs-h" hidden>In a document, each of <i>all these words</i> must appear somewhere in it, and the <i>exact phrase</i> on one page; a document with an unwanted word is left out. The Search Results show where the words were found, with the page. <span id="ws-docs-n"></span></div>
+        </div>
         <div class="grpt" style="margin:0">Find deals that have…</div>
         <div class="fld"><label for="ws-all">all these words</label><input class="in" id="ws-all" type="text"></div>
         <div class="fld"><label for="ws-exact">this exact wording or phrase</label><input class="in" id="ws-exact" type="text"></div>
@@ -699,8 +703,8 @@
 <script src="assets/js/stats.js?v=2"></script>
 <script src="assets/js/revisions.js?v=1"></script>
 <script src="assets/js/prices.js?v=1"></script>
-<script src="assets/js/report.js?v=8"></script>
-<script src="assets/js/database.js?v=7"></script>
+<script src="assets/js/report.js?v=9"></script>
+<script src="assets/js/database.js?v=8"></script>
 <script src="assets/js/admin.js?v=2"></script>
 <script src="assets/js/main.js?v=1"></script>
 <script src="assets/js/grapevine.js?v=3"></script>
