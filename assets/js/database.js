@@ -42,6 +42,8 @@
       date_announced: MAM.isoToUk(x.da), _ann: MAM.isoToTs(x.da), _add: MAM.isoToTs(x.add), pdf: x.p || null, has_report: true
     };
     if (s) mergeStatus(r, s);
+    /* cross border: the offer-status data, else the report's own Cross Border field, else target vs bidder country */
+    if (!has(r.cross_border) && F(f, "pdf_cross_border")) r.cross_border = F(f, "pdf_cross_border");
     if (!has(r.cross_border) && r.target_country && r.bidder_country) r.cross_border = norm(r.target_country) === norm(r.bidder_country) ? "No" : "Yes";
     if (eqGbp != null) r.equity_value_gbp = eqGbp;      // the report's own sterling figure
     if (r.equity_value_gbp == null) r.equity_value_gbp = MAM.fx(r.equity_value, r.currency, "GBP");
@@ -197,16 +199,19 @@
   MAM.resetSearch = resetForm;
   const setChips = (id, vals) => $$("#" + id + " label.chip").forEach(l => { l.querySelector("input").checked = vals.includes(l.dataset.v); });
   const setSeg = (n, v) => { const r = form.querySelector('input[name="' + n + '"][value="' + v + '"]'); if (r) r.checked = true; };
+  const setSel = (id, vals) => { const s = document.getElementById(id); if (s) [...s.options].forEach(o => { o.selected = vals.includes(o.value); }); };
+  /* the Home dashboard's private deals bars add a region, target country or sector (data-region / data-country / data-sector) */
+  const narrow = ds => { if (!ds) return; if (ds.region) setChips("dp-region", [ds.region]); if (ds.country) setSel("tu-ctry", [ds.country]); if (ds.sector) setSel("tu-sect", [ds.sector]); };
   const PRESETS = {
     "pending-public": () => { setSeg("pub", "y"); setChips("dp-status", ["Pending"]); },
-    "pending-private": () => { setSeg("pub", "n"); setChips("dp-status", ["Pending"]); },
+    "pending-private": ds => { setSeg("pub", "n"); setChips("dp-status", ["Pending"]); narrow(ds); },
     "pending-all": () => { setChips("dp-status", ["Pending"]); },
     "uk-public": () => { setSeg("pub", "y"); setChips("dp-region", ["UK & Ireland"]); },
     "recent": () => { const d = new Date(Date.now() - 30 * 864e5); $("#dp-ann").value = d.toLocaleDateString("en-GB"); }
   };
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-preset]"); if (!b || !PRESETS[b.dataset.preset]) return;
-    e.preventDefault(); resetForm(); PRESETS[b.dataset.preset](); live(); location.hash = "#results"; if (location.hash === "#results") MAM.hooks["show:results"]();
+    e.preventDefault(); resetForm(); PRESETS[b.dataset.preset](b.dataset); live(); location.hash = "#results"; if (location.hash === "#results") MAM.hooks["show:results"]();
   });
 
   /* word search runs on the server against the full report text and, when ticked, the text of the deal documents

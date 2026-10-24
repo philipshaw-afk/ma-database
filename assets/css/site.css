@@ -396,3 +396,25 @@ dialog.mdl.wide{width:min(900px,calc(100vw - 32px))}
 .nrep .pr-svg .offl.in{stroke:#fff;stroke-width:3px;paint-order:stroke;stroke-linejoin:round}
 .nrep .pr-key .pr-dm{display:none}
 @media (max-width:640px){.nrep .pr-side table.t.pr-key{margin:6px 14px 4px;width:calc(100% - 28px)}.nrep .pr-key th:nth-child(2),.nrep .pr-key td.dt{display:none}.nrep .pr-key .pr-dm{display:block;font-size:11px;color:var(--t3);margin-top:1px}.nrep .pr-key th{white-space:normal}}
+
+/* Home: Pending deals card - Public offers / Private deals switch and the private deals summary */
+.dash .card-hd .dhd{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.dash .dtabs button{display:inline-flex;align-items:center;gap:6px}
+.dash .dtabs button em{font:700 10px/1 var(--mono);font-style:normal;color:var(--t3);background:rgba(0,0,0,.05);padding:2px 5px;border-radius:4px}
+.dash .dtabs button[aria-pressed="true"] em{color:var(--a);background:var(--al)}
+.dash .dtabs .pdb-new{font:700 8.5px var(--mono);background:var(--g);color:#fff;padding:1px 4px;border-radius:3px}
+.dash .card-s a{font-weight:600}
+.pdt-div{--evc:#4F6EF7}.pdt-acq{--evc:#0891B2}.pdt-mbo{--evc:#7C5CFC}.pdt-min{--evc:#EDA100}.pdt-rto{--evc:#EB6834}.pdt-oth{--evc:#98A2B3}
+.pda-3{--evc:#4F6EF7}.pda-6{--evc:#0891B2}.pda-12{--evc:#EDA100}.pda-y{--evc:#DC3E1B}.pda-na{--evc:#C9D0DC}
+.sbar i[class*="pdt-"],.sbar i[class*="pda-"],.sleg i[class*="pdt-"],.sleg i[class*="pda-"]{background:var(--evc)}
+.hb li.ln{display:block}
+.hb li.ln>a{display:grid;grid-template-columns:110px minmax(0,1fr) 30px;gap:8px;align-items:center;color:inherit;border-radius:4px}
+.hb.hbw li,.hb.hbw li.ln>a{grid-template-columns:150px minmax(0,1fr) 30px}
+.hb li.ln>a:hover .bnm,.hb li.ln>a:focus-visible .bnm{color:var(--a)}
+.hb li.ln>a:hover .btr i{background:#3B5AE0}
+.dh.dh2{margin-top:16px}
+.dsl li .dsv{font:700 12px var(--sans);color:var(--t);white-space:nowrap}
+.dsl li .dsw .evp{display:flex;min-width:0}
+.dsl li .dsw .evp span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.dempty{padding:18px 16px;color:var(--t3);font-size:12.5px}
+@media (max-width:640px){.dash .card-hd .dhd{width:100%}.hb.hbw li,.hb.hbw li.ln>a{grid-template-columns:120px minmax(0,1fr) 30px}}

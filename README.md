@@ -6,7 +6,7 @@ A login-only client site built from the integrated-site mockup (`mamonitorintegr
 
 | Area | What it shows | Where the data comes from |
 |---|---|---|
-| **M&A DataBase › Home** | Pending public offers dashboard, deal lookup, your recently viewed / downloaded reports, recently added deals | `db_deal_index()`, `db_offer_events`, `db_activity` |
+| **M&A DataBase › Home** | Pending deals dashboard with a **Public offers / Private deals** switch (see below), deal lookup, your recently viewed / downloaded reports, recently added deals | `db_deal_index()`, `db_offer_events`, `db_activity` |
 | **Search Form / Search Results** | Parties, deal parameters, values, financials, word search of the report text (and, with the *Also search inside the deal documents* tick box, of the deal documents, shown under each deal with the document, page and a highlighted extract), offer-status and country-specific fields; CSV downloads | `db_deal_index()` (filtered in the browser), `db_word_search()` (full-text search on the server), `db_doc_search()` / `db_doc_snippets()` / `db_doc_text_stats()` |
 | **Deal report** | New-format report: KPIs, offer status, transaction, key dates, valuation, advisers, financials, commentary, payment details, all fields; PDF download | `db_deal()`; PDFs from the private `deal-files` bucket (`exports/…`) via short-lived signed links |
 | **Documents** (tab on each deal report) | The deal's source documents grouped as Press releases / Circulars / Accounts / Other, with date (period end for accounts), size, open (PDFs in a new tab) and download; tab only shows when a deal has documents | `db_deal_documents()`; files in the private `deal-files` bucket under `docs/<deal number>/…` via short-lived signed links; put there by the `deal-docs` edge function (PC uploader / Claude) |
@@ -20,6 +20,19 @@ A login-only client site built from the integrated-site mockup (`mamonitorintegr
 Deal reports are DIANA's own `deals` rows (reported, LIVE, with an exported PDF), so new reports appear on the site as soon as DIANA has them. The offer-status fields, calendar and UK offer statistics are loaded by an admin on the Users page from the mockup file.
 
 **Currencies:** the deal value (`deals.value`) is in the deal's currency, but the database's value and financial fields (Implied Total Equity Value, Enterprise Value, Net debt, Turnover, EBITDA and so on in `deals.fields`) are in **sterling**, converted from the deal's currency. The site shows the headline equity / deal value in the deal's currency and labels every other figure £m; search filters and CSVs convert from sterling for those fields.
+
+## Home: pending deals dashboard
+
+The card counts DIANA's pending deal reports and switches between two summaries (the choice is remembered in the browser):
+
+* **Public offers**: offer status (`db_offer_status`) and offer events (`db_offer_events`) as before: equity value, closings and meetings this month, offer regimes, offer / regulatory status, largest offers, next 14 days. The first tile counts the pending public deal reports, plus proposed offers.
+* **Private deals**: the pending private deal reports in `db_deal_index()`: count (European targets / outside Europe), total and median deal value, announced in the last 30 days, cross-border share, region of target (the Search Form's regions), top target countries, deal type, time since announcement, latest announced, largest deals and sectors.
+  * Deal value: the report's deal value (`deals.value`, deal currency) at the approximate rates in `config.js`; where that is nil, the database's sterling Enterprise Value or Implied Total Equity Value, whichever is larger.
+  * Deal type groups: a combined type goes to the first group it matches of reverse takeover, MBO / MBI, minority stake, divestiture, private acquisition, merger / other.
+  * Time since announcement: under 3 months, 3–6 months, 6–12 months, over a year (calendar months back from today).
+  * Sectors: a deal counts in each of its sectors, as the Search Form's sector filter does, so the bars can add up to more than the number of deals.
+  * Cross-border: the report's own Cross Border field (`pdf_cross_border`, which also counts a foreign seller) once `supabase/sql/2026-10-24_deal_index_cross_border.sql` has been applied; until then the target's and bidder's countries are compared. The Search Form's Cross Border filter uses the same value.
+  * Clicking a region, country or sector bar opens Search Results for the pending private deals there (the `pending-private` preset with `data-region` / `data-country` / `data-sector`).
 
 ## Logins and security
 
@@ -53,6 +66,7 @@ supabase/functions/deal-docs/index.ts  document upload edge function (deployed; 
 supabase/functions/doc-text/          reads the documents' text for the word search (deployed; run / status / redo)
 supabase/sql/2026-10-23_document_text_search.sql   tables, queue and search functions for the document word search
 supabase/sql/2026-10-23_customised_bid_premia.sql  dividends / splits, adjusted close and db_premia_data for the customised bid premia
+supabase/sql/2026-10-24_deal_index_cross_border.sql  db_deal_index carries the report's Cross Border field (not yet applied)
 ```
 
 ## Deal documents (how they get there)
