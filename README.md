@@ -83,6 +83,10 @@ Nothing needs doing by hand: every document that reaches `deal_documents` (by th
 * **Offer price:** final = the last firm offer in the Offer Revisions path (UK & Irish offers), else the report's offer price; initial = the first firm offer / the report's initial offer; in force = the last firm offer on or before the reference date. Offers in £ against pence-quoted shares are converted; other currency mismatches give n/a with a note.
 * Each deal row has a Notes column saying why a figure is n/a (no prices yet, no pre-bid speculation date, no dividends entered, currency mismatch).
 
+## Share prices (how they get there)
+
+Morningstar downloads (.csv, as PyCharm saves them) dropped in `Claude docs\Share prices` on Phil's PC are sent by the same watcher module (the share price part of `sync_database_documents.py`) on every poll when new or changed, through the `deal-docs` function's `prices` action into `docs_load_prices()`: prices are stored by RIC (a file may hold several RICs), and each RIC is linked to every reported public deal whose target matches the file's Security Description (`price_name_core()`) and was announced within the prices' dates (or is pending with no date), never replacing a link a deal already has. A file whose name starts with a deal number (`0044819 Qiagen.csv`) is linked to that deal instead. `Share prices\_prices_synced.json` records what was sent and the deals each RIC is linked to; failures are retried after 30 minutes. Admins can still load a file by hand with the **Share prices** button on a deal.
+
 ## One-time Supabase setting
 
 Authentication › URL Configuration › Redirect URLs must include `https://database.ma-dealboard.co.uk` for the emailed sign-in and password-reset links to come back to this site.

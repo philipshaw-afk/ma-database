@@ -9,6 +9,9 @@
 //   POST ?action=register&deal=..&dir=..&name=..[&date=..] -> records it on the deal (replaces a file of the same name)
 //   PUT  ?action=upload&deal=..&dir=..&name=..[&date=..]  -> small files in one step: body = the file
 //   POST ?action=delete&deal=..&dir=..&name=..            -> removes one document
+//   POST ?action=prices  body {ric, isin, name, currency, rows, deal?} -> daily prices for one RIC (Share prices folder);
+//        rows = [[date, close, open, high, low, volume, vwap, adj_close], ...]; linked to the deal (deal number given) or to
+//        matching deals by name (docs_load_prices)
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -181,6 +184,21 @@ async function list(u: URL) {
   return json({ ok: true, deal, documents: data });
 }
 
+async function prices(req: Request) {
+  if (Number(req.headers.get("content-length") || 0) > 8 * 1024 * 1024) return json({ ok: false, error: "too many prices in one call" }, 413);
+  let b: Record<string, unknown>;
+  try { b = await req.json(); } catch { return json({ ok: false, error: "body must be JSON" }, 400); }
+  const ric = String(b.ric || "").trim(), rows = b.rows;
+  if (!ric || !Array.isArray(rows) || !rows.length) return json({ ok: false, error: "ric and rows are required" }, 400);
+  if (rows.length > 20000) return json({ ok: false, error: "too many rows (over 20,000)" }, 413);
+  const deal = String(b.deal || "").trim();
+  if (deal && !/^\d{7}$/.test(deal)) return json({ ok: false, error: "deal must be a 7-digit deal number" }, 400);
+  const { data, error } = await sb.rpc("docs_load_prices", { p_ric: ric, p_isin: String(b.isin || ""), p_name: String(b.name || ""),
+    p_currency: String(b.currency || ""), p_rows: rows, p_deal: deal || null });
+  if (error) return json({ ok: false, error: error.message }, 400);
+  return json({ ok: true, ...(data as Record<string, unknown>) });
+}
+
 async function remove(u: URL) {
   const { deal, dir, name } = target(u);
   const { data } = await sb.from("deal_documents").select("id,path").eq("deal_number", deal).eq("directory", dir || "").eq("file_name", name).maybeSingle();
@@ -201,6 +219,7 @@ Deno.serve(async (req) => {
     if (action === "register" && req.method === "POST") return await register(u);
     if (action === "upload" && (req.method === "PUT" || req.method === "POST")) return await upload(req, u);
     if (action === "delete" && req.method === "POST") return await remove(u);
+    if (action === "prices" && req.method === "POST") return await prices(req);
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : String(e) }, 500);
