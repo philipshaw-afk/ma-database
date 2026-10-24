@@ -31,7 +31,7 @@ The card counts DIANA's pending deal reports and switches between two summaries 
   * Deal type groups: a combined type goes to the first group it matches of reverse takeover, MBO / MBI, minority stake, divestiture, private acquisition, merger / other.
   * Time since announcement: under 3 months, 3–6 months, 6–12 months, over a year (calendar months back from today).
   * Sectors: a deal counts in each of its sectors, as the Search Form's sector filter does, so the bars can add up to more than the number of deals.
-  * Cross-border: the report's own Cross Border field (`pdf_cross_border`, which also counts a foreign seller) once `supabase/sql/2026-10-24_deal_index_cross_border.sql` has been applied; until then the target's and bidder's countries are compared. The Search Form's Cross Border filter uses the same value.
+  * Cross-border: the report's own Cross Border field (`pdf_cross_border` in `db_deal_index()`, which also counts a foreign seller); where a report has none, the target's and bidder's countries are compared. Public offers with offer status keep the offer-status value. The Search Form's Cross Border filter uses the same value.
   * Clicking a region, country or sector bar opens Search Results for the pending private deals there (the `pending-private` preset with `data-region` / `data-country` / `data-sector`).
 
 ## Logins and security
@@ -66,7 +66,7 @@ supabase/functions/deal-docs/index.ts  document upload edge function (deployed; 
 supabase/functions/doc-text/          reads the documents' text for the word search (deployed; run / status / redo)
 supabase/sql/2026-10-23_document_text_search.sql   tables, queue and search functions for the document word search
 supabase/sql/2026-10-23_customised_bid_premia.sql  dividends / splits, adjusted close and db_premia_data for the customised bid premia
-supabase/sql/2026-10-24_deal_index_cross_border.sql  db_deal_index carries the report's Cross Border field (not yet applied)
+supabase/sql/2026-10-24_deal_index_cross_border.sql  db_deal_index carries the report's Cross Border field (applied 24/10/2026)
 ```
 
 ## Deal documents (how they get there)
