@@ -12,6 +12,8 @@
   const ccyNorm = c => { c = String(c || "").trim(); return /^(STG|GBP)$/i.test(c) ? "GBP" : /^(GBX|GBp)$/.test(c) ? "GBX" : c.toUpperCase(); };
   const money = (v, c) => { c = ccyNorm(c); if (v == null || !isFinite(v)) return "—"; if (c === "GBX") return nf(v, v < 100 ? 2 : 1) + "p"; const s = SYM[c]; return (s != null ? s : c + " ") + nf(v, 2); };
   const pctS = v => v == null || !isFinite(v) ? "—" : (v >= 0 ? "+" : "") + nf(v, 1) + "%";
+  // an amount to up to 4 decimals (dividends per share)
+  const amt4 = (v, c) => { c = ccyNorm(c); const t = (+v).toLocaleString("en-GB", { maximumFractionDigits: 4 }); return c === "GBX" ? t + "p" : (SYM[c] != null ? SYM[c] : c + " ") + t; };
 
   /* ------------------------------------------------------------------ the card */
   // prices = { ric, isin, name, currency, source, rows: [[iso, close], ...] }, deal = DIANA deal row (db_deal)
@@ -22,7 +24,12 @@
     const pc = ccyNorm(prices.currency), oc = ccyNorm(deal.offer_currency || deal.currency);
     // the offer price is only compared with prices quoted in the same currency
     const offer = deal.offer_price != null && +deal.offer_price > 0 && (!oc || oc === pc) ? +deal.offer_price : null;
-    return { rows, ann, pre: pre ? t0(pre) : null, offer, ccy: prices.currency };
+    // dividends that are part of the offer value (e.g. Iveco's extraordinary dividend): added back to the closes from
+    // the ex-date, so they compare with an offer price that includes them; r.raw keeps the quoted close
+    const adds = (prices.addbacks || []).map(a => ({ t: t0(a.d), d: String(a.d).slice(0, 10), amount: +a.amount, note: a.note || "" }))
+      .filter(a => isFinite(a.t) && a.amount > 0).sort((a, b) => a.t - b.t);
+    if (adds.length) rows.forEach(r => { const add = adds.filter(a => r.t >= a.t).reduce((s2, a) => s2 + a.amount, 0); if (add) { r.raw = r.c; r.add = add; r.c = r.c + add; } });
+    return { rows, ann, pre: pre ? t0(pre) : null, offer, ccy: prices.currency, adds };
   }
   // last close on or before t
   const at = (rows, t) => { let lo = 0, hi = rows.length - 1, k = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (rows[m].t <= t) { k = m; lo = m + 1; } else hi = m - 1; } return k >= 0 ? rows[k] : null; };
@@ -66,8 +73,10 @@
     const seg = '<div class="seg pr-rng" role="radiogroup" aria-label="Chart period">' + ranges.map(r => '<label><input type="radio" name="pr-rng" value="' + r[1] + '"' + (r[0] === def ? " checked" : "") + "><span>" + r[0] + "</span></label>").join("") + "</div>";
     const key = keyRows(m);
     const tbl = '<table class="t pr-key"><thead><tr><th>Close</th><th>Date</th><th class="r">Price</th>' + (m.offer ? '<th class="r">Offer premium</th>' : "") + "</tr></thead><tbody>" +
-      key.map(k => "<tr><td>" + esc(k[0]) + (k[1].d ? '<small class="pr-dm">' + uk(k[1].d) + "</small>" : "") + '</td><td class="dt">' + (k[1].d ? uk(k[1].d) : "") + '</td><td class="n">' + money(k[1].c, m.ccy) + "</td>" + (m.offer ? '<td class="n' + (k[2] != null && k[2] < 0 ? " dn" : "") + '">' + pctS(k[2]) + "</td>" : "") + "</tr>").join("") + "</tbody></table>";
-    const note = (m.offer ? "Offer premium = the offer price of " + money(m.offer, m.ccy) + " over each close (for the latest close, the gap still to the offer). " : "") + "Prices: " + esc(prices.source || "Morningstar") + ", RIC " + esc(prices.ric) + ".";
+      key.map(k => "<tr><td>" + esc(k[0]) + (k[1].d ? '<small class="pr-dm">' + uk(k[1].d) + "</small>" : "") + '</td><td class="dt">' + (k[1].d ? uk(k[1].d) : "") + '</td><td class="n">' + money(k[1].c, m.ccy) + (k[1].add ? "*" : "") + "</td>" + (m.offer ? '<td class="n' + (k[2] != null && k[2] < 0 ? " dn" : "") + '">' + pctS(k[2]) + "</td>" : "") + "</tr>").join("") + "</tbody></table>";
+    const note = (m.offer ? "Offer premium = the offer price of " + amt4(m.offer, m.ccy) + " over each close (for the latest close, the gap still to the offer). " : "") +
+      m.adds.map(a => "* Closes from " + uk(a.d) + " (ex-dividend) include the " + amt4(a.amount, m.ccy) + " dividend" + (a.note ? ": " + esc(a.note) : "") + ". ").join("") +
+      "Prices: " + esc(prices.source || "Morningstar") + ", RIC " + esc(prices.ric) + ".";
     const facts = [["Security", prices.name || ""], ["RIC", prices.ric], ["ISIN", prices.isin || ""], ["Currency", ccyNorm(prices.currency)],
       ["Prices", uk(first.d) + " – " + uk(last.d)], ["Trading days", nf(m.rows.length)], ["Source", prices.source || "Morningstar"]]
       .filter(x => x[1]).map(x => "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>").join("");
@@ -261,6 +270,7 @@
     const ev = [];
     if (m.pre && m.pre >= xs && m.pre <= xe) ev.push([m.pre, "Pre-bid speculation"]);
     if (m.ann && m.ann >= xs && m.ann <= xe) ev.push([m.ann, "Announced"]);
+    m.adds.forEach(a => { if (a.t >= xs && a.t <= xe && ev.length < 2) ev.push([a.t, "Ex-dividend"]); });
     // two labels that would collide go on two lines above the plot
     const stack = ev.length > 1 && Math.abs(X(ev[0][0]) - X(ev[1][0])) < 220;
     const short = s2 => s2.slice(8, 10) + "/" + s2.slice(5, 7) + "/" + s2.slice(2, 4);
@@ -268,7 +278,7 @@
       const x = X(t), y = stack ? (i === 0 ? 11 : 24) : 18;
       el("line", { x1: x, x2: x, y1: stack ? 28 : y + 4, y2: H - pad.b, class: "ev" }, svg);
       const right = x > (W - pad.r + pad.l) / 2, tx = el("text", { x: right ? x - 5 : x + 5, y, "text-anchor": right ? "end" : "start", class: "evl" }, svg);
-      tx.textContent = narrow ? (l === "Announced" ? "Announced " : "Pre-bid ") + short(iso(t)) : l + " " + uk(iso(t));
+      tx.textContent = narrow ? (l === "Pre-bid speculation" ? "Pre-bid" : l) + " " + short(iso(t)) : l + " " + uk(iso(t));
     });
     // price: 10% wash + 2px line
     const pts = vis.map(r => X(r.t).toFixed(1) + "," + Y(r.c).toFixed(1));
@@ -279,7 +289,7 @@
       const y = Y(m.offer); el("line", { x1: pad.l, x2: W - pad.r + 4, y1: y, y2: y, class: "off" }, svg);
       // narrow screens: the label sits just above the line inside the plot
       const tx = narrow ? el("text", { x: W - pad.r - 2, y: y - 6, "text-anchor": "end", class: "offl in" }, svg) : el("text", { x: W - pad.r + 8, y: y + 4, class: "offl" }, svg);
-      tx.textContent = "Offer " + money(m.offer, m.ccy);
+      tx.textContent = "Offer " + amt4(m.offer, m.ccy);
     }
     // end value
     const e = vis[vis.length - 1]; el("circle", { cx: X(e.t), cy: Y(e.c), r: 4, class: "dot" }, svg);
@@ -295,6 +305,7 @@
       tip.textContent = "";
       const v = document.createElement("b"); v.textContent = money(r.c, m.ccy); tip.appendChild(v);
       const d = document.createElement("span"); d.textContent = uk(r.d); tip.appendChild(d);
+      if (r.add) { const a = document.createElement("span"); a.textContent = "Quoted " + money(r.raw, m.ccy) + " + " + amt4(r.add, m.ccy) + " dividend"; tip.appendChild(a); }
       if (m.offer) { const p = document.createElement("span"); p.textContent = "Offer premium " + pctS((m.offer / r.c - 1) * 100); tip.appendChild(p); }
       tip.hidden = false;
       // the tooltip sits right of the crosshair, or left of it near the right edge
