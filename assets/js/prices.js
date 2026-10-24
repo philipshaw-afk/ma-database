@@ -39,8 +39,15 @@
     const adds = (prices.addbacks || []).map(a => ({ t: t0(a.d), d: String(a.d).slice(0, 10), amount: +a.amount, note: a.note || "" }))
       .filter(a => isFinite(a.t) && a.amount > 0).sort((a, b) => a.t - b.t);
     if (adds.length) rows.forEach(r => { const add = adds.filter(a => r.t >= a.t).reduce((s2, a) => s2 + a.amount, 0); if (add) { if (r.raw == null) r.raw = r.c; r.add = add; r.c = r.c + add; } });
-    return { rows, ann, pre: pre ? t0(pre) : null, offer, ccy: prices.currency, adds, adj };
+    // competing bids (M&A Monitor convention): the closes before the announcement are measured from the announcement of
+    // the first offer, so the premia of the rival offers compare; prices after it from this offer's announcement
+    const cr = prices.ref || {};
+    const pref = cr.pre_ref && ann && t0(cr.pre_ref) < ann ? t0(cr.pre_ref) : ann;
+    const rivals = (cr.rivals || []).map(r => ({ t: t0(r.d), d: String(r.d).slice(0, 10), bidder: r.bidder || "", no: r.deal_number })).filter(r => isFinite(r.t));
+    return { rows, ann, pre: pre ? t0(pre) : null, offer, ccy: prices.currency, adds, adj, pref, first: pref !== ann ? (cr.first || null) : null, rivals };
   }
+  // "AUDAX RENOVABLES SA" -> "Audax"; "DNO ASA" -> "DNO"
+  const shortName = s => { const w = String(s || "").trim().split(/[\s,/]+/)[0] || ""; return w.length <= 3 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); };
   // last close on or before t
   const at = (rows, t) => { let lo = 0, hi = rows.length - 1, k = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (rows[m].t <= t) { k = m; lo = m + 1; } else hi = m - 1; } return k >= 0 ? rows[k] : null; };
   // the same measures, dates and conventions as the database's recorded bid premia
@@ -48,24 +55,26 @@
     const out = [], prem = c => m.offer && c ? (m.offer / c - 1) * 100 : null;
     const last = m.rows[m.rows.length - 1];
     if (last) out.push(["Latest close", last, prem(last.c)]);
-    if (m.ann) {
+    // before the announcement = before the first offer's announcement for competing bids (m.pref)
+    const R = m.pref;
+    if (R) {
       const add = (lab, t) => { const r = at(m.rows, t); if (r) out.push([lab, r, prem(r.c)]); };
-      const months = k => { const d = new Date(m.ann); d.setUTCMonth(d.getUTCMonth() - k); return +d; };
-      add("1 day before announcement", m.ann - DAY);
-      add("1 week before", m.ann - 7 * DAY);
-      add("2 weeks before", m.ann - 14 * DAY);
-      add("3 weeks before", m.ann - 21 * DAY);
-      add("4 weeks before", m.ann - 28 * DAY);
+      const months = k => { const d = new Date(R); d.setUTCMonth(d.getUTCMonth() - k); return +d; };
+      add(R === m.ann ? "1 day before announcement" : m.first ? "1 day before first offer ‡" : "1 day before reference date ‡", R - DAY);
+      add("1 week before", R - 7 * DAY);
+      add("2 weeks before", R - 14 * DAY);
+      add("3 weeks before", R - 21 * DAY);
+      add("4 weeks before", R - 28 * DAY);
       add("2 months before", months(2));
       add("3 months before", months(3));
       // average close of the 30 trading days before the announcement
-      const win = m.rows.filter(r => r.t < m.ann).slice(-30);
+      const win = m.rows.filter(r => r.t < R).slice(-30);
       if (win.length === 30) { const avg = win.reduce((s, r) => s + r.c, 0) / 30; out.push(["30-day average before", { d: null, c: avg }, prem(avg)]); }
     }
     // the pre-bid speculation date is the last undisturbed close
     if (m.pre) { const r = at(m.rows, m.pre); if (r) out.push(["Pre-bid speculation", r, prem(r.c)]); }
-    if (m.ann) {
-      const yr = m.rows.filter(r => r.t < m.ann && r.t >= m.ann - 365 * DAY);
+    if (R) {
+      const yr = m.rows.filter(r => r.t < R && r.t >= R - 365 * DAY);
       if (yr.length > 20) {
         const hi = yr.reduce((a, r) => r.c > a.c ? r : a), lo = yr.reduce((a, r) => r.c < a.c ? r : a);
         out.push(["52-week high before", hi, prem(hi.c)], ["52-week low before", lo, prem(lo.c)]);
@@ -88,6 +97,8 @@
       (m.adj.length ? "† M&A Monitor adjusted price: " + m.adj.map(a => a.kind === "dividend" ? amt4(a.amount, m.ccy) + " dividend (ex " + uk(a.d) + ")" : "split / consolidation " + a.ratio + " (ex " + uk(a.d) + ")").join(", ") +
         " deducted from (splits applied to) the closes before each ex-date, as in the bid premia. " : "") +
       m.adds.map(a => "* Closes from " + uk(a.d) + " (ex-dividend) include the " + amt4(a.amount, m.ccy) + " dividend" + (a.note ? ": " + esc(a.note) : "") + ". ").join("") +
+      (m.pref !== m.ann ? "‡ " + (m.first ? "Competing bids: the closes before the announcement are measured from " + uk(iso(m.pref)) + ", the announcement of " + esc(shortName(m.first.bidder)) + "'s offer, so the premia compare with those of the rival offer; prices after the announcement from " + uk(iso(m.ann)) + ", the announcement of this offer. "
+        : "The closes before the announcement are measured from the reference date of " + uk(iso(m.pref)) + (prices.ref && prices.ref.note ? " (" + esc(prices.ref.note) + ")" : "") + ". ") : "") +
       "Prices: " + esc(prices.source || "Morningstar") + ", RIC " + esc(prices.ric) + ".";
     const facts = [["Security", prices.name || ""], ["RIC", prices.ric], ["ISIN", prices.isin || ""], ["Currency", ccyNorm(prices.currency)],
       ["Prices", uk(first.d) + " – " + uk(last.d)], ["Trading days", nf(m.rows.length)], ["Source", prices.source || "Morningstar"]]
@@ -269,7 +280,28 @@
     const padY = (hi - lo) * 0.08 || hi * 0.05; lo -= padY; hi += padY;
     const yt = niceTicks(lo, hi, W < 520 ? 4 : 5);
     lo = Math.min(lo, yt.ticks[0]); hi = Math.max(hi, yt.ticks[yt.ticks.length - 1]);
-    const X = t => pad.l + (t - xs) / Math.max(1, xe - xs) * (W - pad.l - pad.r), Y = v => pad.t + (hi - v) / (hi - lo) * (H - pad.t - pad.b);
+    const X = t => pad.l + (t - xs) / Math.max(1, xe - xs) * (W - pad.l - pad.r);
+    // events: pre-bid speculation, rival offers (competing bids), the announcement, ex-dividend dates; labels that would
+    // collide go on separate lines above the plot (up to three; any further one keeps its line without a label)
+    const short = s2 => s2.slice(8, 10) + "/" + s2.slice(5, 7) + "/" + s2.slice(2, 4);
+    const evs = [];
+    if (m.pre && m.pre >= xs && m.pre <= xe) evs.push({ t: m.pre, l: narrow ? "Pre-bid" : "Pre-bid speculation" });
+    (m.rivals || []).forEach(r => { if (r.t >= xs && r.t <= xe) evs.push({ t: r.t, l: shortName(r.bidder) + " offer", rv: true }); });
+    if (m.ann && m.ann >= xs && m.ann <= xe) evs.push({ t: m.ann, l: "Announced" });
+    m.adds.forEach(a => { if (a.t >= xs && a.t <= xe) evs.push({ t: a.t, l: "Ex-dividend" }); });
+    evs.sort((a, b) => a.t - b.t);
+    const lanes = [], mid = (W - pad.r + pad.l) / 2;
+    evs.forEach(e => {
+      e.x = X(e.t); e.txt = e.l + " " + (narrow ? short(iso(e.t)) : uk(iso(e.t)));
+      const w = e.txt.length * 6.3; e.right = e.x > mid;
+      e.a = e.right ? e.x - 5 - w : e.x + 5; e.b = e.right ? e.x - 5 : e.x + 5 + w;
+      let k = lanes.findIndex(lane => lane.every(([a, b]) => e.b + 8 < a || e.a > b + 8));
+      if (k < 0 && lanes.length < 3) { lanes.push([]); k = lanes.length - 1; }
+      e.lane = k; if (k >= 0) lanes[k].push([e.a, e.b]);
+    });
+    const nl = Math.max(1, lanes.length);
+    if (nl > 2) pad.t = 43;
+    const Y = v => pad.t + (hi - v) / (hi - lo) * (H - pad.t - pad.b);
     box.textContent = "";
     const svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, class: "pr-svg", role: "img", tabindex: "0",
       "aria-label": "Daily closing share price from " + uk(iso(xs)) + " to " + uk(iso(xe)) + ". Use the left and right arrow keys to read values." }, box);
@@ -278,19 +310,11 @@
     yt.ticks.forEach(v => { if (v < lo - 1e-9 || v > hi + 1e-9) return; el("line", { x1: pad.l, x2: W - pad.r, y1: Y(v), y2: Y(v) }, g); const tx = el("text", { x: pad.l - 8, y: Y(v) + 4, "text-anchor": "end", class: "ax" }, svg); tx.textContent = nf(v, dp); });
     dateTicks(xs, xe, Math.max(2, Math.floor((W - pad.l - pad.r) / 70))).forEach(k => { if (k.t < xs || k.t > xe) return; const x = X(k.t); el("line", { x1: x, x2: x, y1: H - pad.b, y2: H - pad.b + 4, class: "tk" }, svg); const tx = el("text", { x, y: H - 8, "text-anchor": "middle", class: "ax" }, svg); tx.textContent = k.l; });
     el("line", { x1: pad.l, x2: W - pad.r, y1: H - pad.b, y2: H - pad.b, class: "base" }, svg);
-    // events: announcement and pre-bid speculation
-    const ev = [];
-    if (m.pre && m.pre >= xs && m.pre <= xe) ev.push([m.pre, "Pre-bid speculation"]);
-    if (m.ann && m.ann >= xs && m.ann <= xe) ev.push([m.ann, "Announced"]);
-    m.adds.forEach(a => { if (a.t >= xs && a.t <= xe && ev.length < 2) ev.push([a.t, "Ex-dividend"]); });
-    // two labels that would collide go on two lines above the plot
-    const stack = ev.length > 1 && Math.abs(X(ev[0][0]) - X(ev[1][0])) < 220;
-    const short = s2 => s2.slice(8, 10) + "/" + s2.slice(5, 7) + "/" + s2.slice(2, 4);
-    ev.forEach(([t, l], i) => {
-      const x = X(t), y = stack ? (i === 0 ? 11 : 24) : 18;
-      el("line", { x1: x, x2: x, y1: stack ? 28 : y + 4, y2: H - pad.b, class: "ev" }, svg);
-      const right = x > (W - pad.r + pad.l) / 2, tx = el("text", { x: right ? x - 5 : x + 5, y, "text-anchor": right ? "end" : "start", class: "evl" }, svg);
-      tx.textContent = narrow ? (l === "Pre-bid speculation" ? "Pre-bid" : l) + " " + short(iso(t)) : l + " " + uk(iso(t));
+    evs.forEach(e => {
+      el("line", { x1: e.x, x2: e.x, y1: nl > 1 ? 13 * nl + 2 : 22, y2: H - pad.b, class: "ev" + (e.rv ? " rv" : "") }, svg);
+      if (e.lane < 0) return;
+      const tx = el("text", { x: e.right ? e.x - 5 : e.x + 5, y: nl > 1 ? 11 + 13 * e.lane : 18, "text-anchor": e.right ? "end" : "start", class: "evl" }, svg);
+      tx.textContent = e.txt;
     });
     // price: 10% wash + 2px line
     const pts = vis.map(r => X(r.t).toFixed(1) + "," + Y(r.c).toFixed(1));

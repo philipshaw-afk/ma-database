@@ -11,6 +11,8 @@
    - M&A Monitor adjusted close: an imported adjusted close where there is one; otherwise the close with every
      dividend deducted from the prices before its ex-dividend date and every split / consolidation applied to them
      (price / ratio), as the admin site's Price Adjustment Tool.
+   - Competing bids, with the announcement as the reference date: prices before it are taken from the announcement of
+     the first offer (as the recorded bid premia, so the rival offers' premia compare); prices after it from the deal's own.
    - Premium = offer price / share price - 1, in %. Offer prices in £ against pence-quoted shares are converted. */
 (function () {
   "use strict";
@@ -32,7 +34,7 @@
     inc2: "Second increased offer date", inc3: "Third increased offer date", inc4: "Fourth increased offer date" };
   const REF_H = {
     rumour: "The first trading day after the pre-bid speculation date (the last undisturbed close), i.e. the first day of rumours or the approach. Deals without a pre-bid speculation date show n/a.",
-    ann: "The day the offer (or possible offer) was announced.",
+    ann: "The day the offer (or possible offer) was announced. For competing bids, prices before the announcement are taken from the announcement of the first offer, so the premia of the rival offers compare (as the recorded bid premia).",
     comp: "The day the deal completed. Deals that have not completed show n/a.",
     inc: "From the Offer Revisions data, which covers UK and Irish offers; other deals and offers that were not increased that often show n/a."
   };
@@ -125,6 +127,9 @@
     const k = +o.ref.slice(3), fo = firmOffers(pd);
     return fo[k] ? fo[k][0] : null;
   }
+  // competing bids (M&A Monitor convention): with the announcement as the reference date, prices before it are taken
+  // from the announcement of the first offer (db_premia_data cref.pre_ref), so the premia of the rival offers compare
+  const preRefT = (o, pd, R) => { const c = pd && pd.cref; return o.ref === "ann" && R != null && c && c.pre_ref && t0(c.pre_ref) < R ? t0(c.pre_ref) : R; };
   const firmOffers = pd => ((pd && pd.path && pd.path.f) || []).filter(e => e && e[0] && numv(e[1]) != null).slice().sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
 
   // the offer price per share (in the deal's offer currency)
@@ -214,7 +219,7 @@
       nos.forEach(n => {
         const x = X[n], pd = P[n]; if (!x || !pd || !pd.ric) return;
         const ref = refDate(o, x, pd, null); if (!ref) return;
-        const R = t0(ref);
+        const R = Math.min(t0(ref), preRefT(o, pd, t0(ref)));
         let back = Math.max(0, ...o.before.map(p => span(p, o.td || o.layout === "daily")), o.avg ? Math.ceil(o.avgN * 1.5) + 10 : 0);
         let fwd = Math.max(0, ...o.after.map(p => span(p, o.td || o.layout === "daily")));
         need.push({ n, from: iso(R - (back + 14) * DAY), to: iso(R + (fwd + 14) * DAY) });
@@ -257,7 +262,8 @@
       const cells = cols.map(c => ({ v: c.get(x), fmt: c.fmt }));
       const notes = [];
       const S = pd.ric ? series(pd, o.px) : [];
-      const ref = refDate(o, x, pd, S), R = ref ? t0(ref) : null;
+      const ref = refDate(o, x, pd, S), R = ref ? t0(ref) : null, Rb = preRefT(o, pd, R);
+      if (Rb !== R) { const c = pd.cref || {}; notes.push("competing bid: prices before the announcement taken from " + MAM.isoToUk(iso(Rb)) + (c.first && c.first.bidder ? ", the announcement of the first offer (" + c.first.bidder + ")" : "")); }
       const offer = offerFor(o, x, d, pd, R);
       const oc = d.offer_currency || d.currency || "";
       if (!pd.ric) notes.push("no share prices on the DataBase yet");
@@ -277,7 +283,7 @@
         { v: pd.ric ? (u.k === 0.01 && ccyNorm(pd.ccy) !== "GBX" ? "GBp" : ccyShow(pd.ccy)) : "", fmt: "t" });
       if (o.layout === "points") {
         pts.forEach(pt => {
-          const r = ok ? pick(S, R, pt, o) : null, v = prem(r), col = mark(v, r && r.zero);
+          const r = ok ? pick(S, pt.kind === "before" || pt.kind === "avg" ? Rb : R, pt, o) : null, v = prem(r), col = mark(v, r && r.zero);
           if (o.show === "all") {
             cells.push(r && r.avg ? { v: MAM.isoToUk(r.d.split("|")[0]) + " – " + MAM.isoToUk(r.d.split("|")[1]), fmt: "t" } : { v: r ? r.d : null, fmt: "d", na: ok });
             cells.push({ v: r ? r.v : null, fmt: "px", color: r && r.zero ? "blue" : null, na: ok });
@@ -285,7 +291,7 @@
           cells.push({ v, fmt: "p", color: col, na: true, prem: true });
         });
       } else {
-        const jb = ok ? lastBefore(S, R) : -1, j0 = ok ? lastOnOrBefore(S, R) : -1, ja = ok ? firstAfter(S, R) : -1;
+        const jb = ok ? lastBefore(S, Rb) : -1, j0 = ok ? lastOnOrBefore(S, R) : -1, ja = ok ? firstAfter(S, R) : -1;
         for (let k = -B; k <= A; k++) {
           const j = k < 0 ? (jb >= 0 ? jb + k + 1 : -1) : k === 0 ? j0 : (ja >= 0 ? ja + k - 1 : -1);
           const r = ok && j >= 0 && j < S.length ? S[j] : null;

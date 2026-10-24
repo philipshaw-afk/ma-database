@@ -374,6 +374,7 @@ dialog.mdl.wide{width:min(900px,calc(100vw - 32px))}
 .nrep .pr-svg .line{fill:none;stroke:var(--a);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .nrep .pr-svg .dot{fill:var(--a);stroke:#fff;stroke-width:2}
 .nrep .pr-svg .ev{stroke:rgba(15,23,41,.3);stroke-width:1}
+.nrep .pr-svg .ev.rv{stroke-dasharray:3 3}
 .nrep .pr-svg .evl{fill:var(--t2);font-size:11px;font-weight:600}
 .nrep .pr-svg .off{stroke:var(--ink);stroke-width:1.5;opacity:.75}
 .nrep .pr-svg .offl{fill:var(--ink);font-size:11.5px;font-weight:700}

@@ -81,6 +81,7 @@ Nothing needs doing by hand: every document that reaches `deal_documents` (by th
 * **First day of rumours / approach:** the first trading day after the pre-bid speculation date (the last undisturbed close).
 * **M&A Monitor adjusted close:** `share_prices.adj_close` where one has been imported (e.g. the old database's adjusted series); otherwise the close with every dividend in `price_adjustments` deducted from the prices before its ex-date and every split / consolidation applied to them (price ÷ ratio), as the admin site's Price Adjustment Tool did by hand. Dividends are stored per share in the share price's currency (pence for pence-quoted shares).
 * **Offer price:** final = the last firm offer in the Offer Revisions path (UK & Irish offers), else the report's offer price; initial = the first firm offer / the report's initial offer; in force = the last firm offer on or before the reference date. Offers in £ against pence-quoted shares are converted; other currency mismatches give n/a with a note.
+* **Competing bids:** with the announcement date as the reference, the prices before it are taken from the announcement of the first offer and the prices after it from the deal's own announcement (M&A Monitor convention, so the rival offers' premia compare; Elmera: Audax 25/06/2026, Fortum 29/06/2026). See `deal_premium_ref()` below.
 * Each deal row has a Notes column saying why a figure is n/a (no prices yet, no pre-bid speculation date, no dividends entered, currency mismatch).
 
 ## Share prices (how they get there)
@@ -90,6 +91,8 @@ Morningstar downloads (.csv, as PyCharm saves them) dropped in `Claude docs\Shar
 ## Deals, RICs and ISINs
 
 DIANA's deals carry no RICs or ISINs. `deal_isins` holds each deal's target / bidder ISIN (loaded from Phil's pending-deals export, 24/10/2026); `price_link_deals()` links `deal_tickers` by any ISIN seen for a security (`price_security_isins`) when the names agree too (`name_similar()`, which catches the wrong ISINs in the source lists), then by the target's name. A security is a RIC in one currency for one company: a RIC already held for another currency or company is stored as `RIC~CCY` / `RIC~ISIN`, and a new RIC for a held ISIN / currency / company is added to that security. Morningstar per-deal downloads in `C:\Users\phili\Documents\PYTHON FILES` are sent by the watcher (`price_folders` in the config).
+
+`deal_premium_ref(deal)`: the competing-bid reference dates. For a deal whose competitive status is "… Bidder Won", the rival offers are the reported deals for the same target (`price_name_core()`) with the same kind of status announced within 400 days; `pre_ref` (prices before the announcement) is the first offer's announcement date, `post_ref` the deal's own. Returned by `db_deal_prices` (`ref`, used by the Share price tab's Key prices, marked ‡, with the rival offers on the chart) and `db_premia_data` (`cref`). `deal_premium_refs` holds admin overrides (pre_ref / post_ref / note) for other cases.
 
 `deal_price_addbacks`: dividends that form part of a deal's offer value (Iveco 0043276: €5.8216 ex 20/04/2026, TML's offer price falls by it) are added back to the target's closes from the ex-date on the Share price tab, marked * in Key prices, with the quoted close in the tooltip.
 
