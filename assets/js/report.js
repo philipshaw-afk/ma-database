@@ -335,7 +335,10 @@
     /* tabs */
     const tabs = [["overview", "Overview"]];
     if (s) tabs.push(["status", 'Offer status <span class="new">NEW</span>']);
-    const prices = res.prices && Array.isArray(res.prices.rows) && res.prices.rows.length && MAM.prices ? res.prices : null;
+    // clients see the Share price tab once there are 20 days of prices (the daily download adds one day at a time);
+    // admins see it from the first day
+    const pDays = res.prices && Array.isArray(res.prices.rows) ? res.prices.rows.length : 0;
+    const prices = MAM.prices && pDays && (pDays >= 20 || (MAM.me && MAM.me.role === "admin")) ? res.prices : null;
     if (prices) tabs.push(["prices", "Share price"]);
     tabs.push(["financials", "Financials"]);
     if (d.overview || d.profiles || d.background) tabs.push(["commentary", "Commentary"]);
