@@ -28,10 +28,18 @@
     const offer = deal.offer_price != null && +deal.offer_price > 0 && (!oc || oc === pc || pence !== 1) ? +deal.offer_price * pence : null;
     // dividends that are part of the offer value (e.g. Iveco's extraordinary dividend): added back to the closes from
     // the ex-date, so they compare with an offer price that includes them; r.raw keeps the quoted close
+    // the M&A Monitor adjusted price (as the bid premia and the admin site's Price Adjustment Tool): each dividend is
+    // deducted from the closes before its ex-date, and each split / consolidation divides them by its ratio
+    const adj = (prices.adj || []).map(a => ({ t: t0(a.d), d: String(a.d).slice(0, 10), kind: a.kind, amount: +a.amount, ratio: +a.ratio }))
+      .filter(a => isFinite(a.t) && (a.kind === "dividend" ? a.amount > 0 : a.ratio > 0)).sort((a, b) => a.t - b.t);
+    if (adj.length) {
+      rows.forEach(r => { let v = r.c; for (const a of adj) if (a.t > r.t) { if (a.kind === "dividend") v -= a.amount; else v /= a.ratio; } if (v !== r.c) { r.raw = r.c; r.adjd = true; r.c = v; } });
+      for (let i = rows.length - 1; i >= 0; i--) if (!(rows[i].c > 0)) rows.splice(i, 1);
+    }
     const adds = (prices.addbacks || []).map(a => ({ t: t0(a.d), d: String(a.d).slice(0, 10), amount: +a.amount, note: a.note || "" }))
       .filter(a => isFinite(a.t) && a.amount > 0).sort((a, b) => a.t - b.t);
-    if (adds.length) rows.forEach(r => { const add = adds.filter(a => r.t >= a.t).reduce((s2, a) => s2 + a.amount, 0); if (add) { r.raw = r.c; r.add = add; r.c = r.c + add; } });
-    return { rows, ann, pre: pre ? t0(pre) : null, offer, ccy: prices.currency, adds };
+    if (adds.length) rows.forEach(r => { const add = adds.filter(a => r.t >= a.t).reduce((s2, a) => s2 + a.amount, 0); if (add) { if (r.raw == null) r.raw = r.c; r.add = add; r.c = r.c + add; } });
+    return { rows, ann, pre: pre ? t0(pre) : null, offer, ccy: prices.currency, adds, adj };
   }
   // last close on or before t
   const at = (rows, t) => { let lo = 0, hi = rows.length - 1, k = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (rows[m].t <= t) { k = m; lo = m + 1; } else hi = m - 1; } return k >= 0 ? rows[k] : null; };
@@ -69,14 +77,16 @@
     const m = model(deal, f, prices);
     if (!m.rows.length) return "";
     const first = m.rows[0], last = m.rows[m.rows.length - 1];
-    const sub = esc(prices.name || deal.target) + " · RIC " + esc(prices.ric) + " · " + esc(ccyNorm(prices.currency) || "") + " · daily close " + uk(first.d) + "–" + uk(last.d);
+    const sub = esc(prices.name || deal.target) + " · RIC " + esc(prices.ric) + " · " + esc(ccyNorm(prices.currency) || "") + " · " + (m.adj.length ? "M&A Monitor adjusted close " : "daily close ") + uk(first.d) + "–" + uk(last.d);
     const ranges = [["3M", 91], ["6M", 182], ["1Y", 365], ["2Y", 730], ["5Y", 1826], ["All", 0]].filter(r => !r[1] || last.t - first.t > r[1] * DAY * 0.5);
     const def = ranges.some(r => r[0] === "1Y") ? "1Y" : ranges[ranges.length - 1][0];
     const seg = '<div class="seg pr-rng" role="radiogroup" aria-label="Chart period">' + ranges.map(r => '<label><input type="radio" name="pr-rng" value="' + r[1] + '"' + (r[0] === def ? " checked" : "") + "><span>" + r[0] + "</span></label>").join("") + "</div>";
     const key = keyRows(m);
     const tbl = '<table class="t pr-key"><thead><tr><th>Close</th><th>Date</th><th class="r">Price</th>' + (m.offer ? '<th class="r">Offer premium</th>' : "") + "</tr></thead><tbody>" +
-      key.map(k => "<tr><td>" + esc(k[0]) + (k[1].d ? '<small class="pr-dm">' + uk(k[1].d) + "</small>" : "") + '</td><td class="dt">' + (k[1].d ? uk(k[1].d) : "") + '</td><td class="n">' + money(k[1].c, m.ccy) + (k[1].add ? "*" : "") + "</td>" + (m.offer ? '<td class="n' + (k[2] != null && k[2] < 0 ? " dn" : "") + '">' + pctS(k[2]) + "</td>" : "") + "</tr>").join("") + "</tbody></table>";
+      key.map(k => "<tr><td>" + esc(k[0]) + (k[1].d ? '<small class="pr-dm">' + uk(k[1].d) + "</small>" : "") + '</td><td class="dt">' + (k[1].d ? uk(k[1].d) : "") + '</td><td class="n">' + money(k[1].c, m.ccy) + (k[1].adjd ? "†" : "") + (k[1].add ? "*" : "") + "</td>" + (m.offer ? '<td class="n' + (k[2] != null && k[2] < 0 ? " dn" : "") + '">' + pctS(k[2]) + "</td>" : "") + "</tr>").join("") + "</tbody></table>";
     const note = (m.offer ? "Offer premium = the offer price of " + amt4(m.offer, m.ccy) + " over each close (for the latest close, the gap still to the offer). " : "") +
+      (m.adj.length ? "† M&A Monitor adjusted price: " + m.adj.map(a => a.kind === "dividend" ? amt4(a.amount, m.ccy) + " dividend (ex " + uk(a.d) + ")" : "split / consolidation " + a.ratio + " (ex " + uk(a.d) + ")").join(", ") +
+        " deducted from (splits applied to) the closes before each ex-date, as in the bid premia. " : "") +
       m.adds.map(a => "* Closes from " + uk(a.d) + " (ex-dividend) include the " + amt4(a.amount, m.ccy) + " dividend" + (a.note ? ": " + esc(a.note) : "") + ". ").join("") +
       "Prices: " + esc(prices.source || "Morningstar") + ", RIC " + esc(prices.ric) + ".";
     const facts = [["Security", prices.name || ""], ["RIC", prices.ric], ["ISIN", prices.isin || ""], ["Currency", ccyNorm(prices.currency)],
@@ -307,7 +317,7 @@
       tip.textContent = "";
       const v = document.createElement("b"); v.textContent = money(r.c, m.ccy); tip.appendChild(v);
       const d = document.createElement("span"); d.textContent = uk(r.d); tip.appendChild(d);
-      if (r.add) { const a = document.createElement("span"); a.textContent = "Quoted " + money(r.raw, m.ccy) + " + " + amt4(r.add, m.ccy) + " dividend"; tip.appendChild(a); }
+      if (r.raw != null) { const a = document.createElement("span"); a.textContent = "Quoted " + money(r.raw, m.ccy) + (r.add ? " + " + amt4(r.add, m.ccy) + " dividend" : "") + (r.adjd ? ", adjusted for later dividends / splits" : ""); tip.appendChild(a); }
       if (m.offer) { const p = document.createElement("span"); p.textContent = "Offer premium " + pctS((m.offer / r.c - 1) * 100); tip.appendChild(p); }
       tip.hidden = false;
       // the tooltip sits right of the crosshair, or left of it near the right edge
