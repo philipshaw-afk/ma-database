@@ -22,8 +22,10 @@
     const ann = deal.date_announced ? t0(deal.date_announced) : null;
     const pre = f["Pre-bid speculation date"] || (deal.key_dates || {}).pre_bid_speculation || null;
     const pc = ccyNorm(prices.currency), oc = ccyNorm(deal.offer_currency || deal.currency);
-    // the offer price is only compared with prices quoted in the same currency
-    const offer = deal.offer_price != null && +deal.offer_price > 0 && (!oc || oc === pc) ? +deal.offer_price : null;
+    // the offer price is only compared with prices quoted in the same currency; UK offers are recorded in pounds (STG)
+    // while London prices are quoted in pence (GBX), so those are converted
+    const pence = oc === "GBP" && pc === "GBX" ? 100 : oc === "GBX" && pc === "GBP" ? 0.01 : 1;
+    const offer = deal.offer_price != null && +deal.offer_price > 0 && (!oc || oc === pc || pence !== 1) ? +deal.offer_price * pence : null;
     // dividends that are part of the offer value (e.g. Iveco's extraordinary dividend): added back to the closes from
     // the ex-date, so they compare with an offer price that includes them; r.raw keeps the quoted close
     const adds = (prices.addbacks || []).map(a => ({ t: t0(a.d), d: String(a.d).slice(0, 10), amount: +a.amount, note: a.note || "" }))
