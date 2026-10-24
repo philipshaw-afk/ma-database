@@ -35,11 +35,33 @@
   MAM.ukToTs = s => { const m = /^\s*(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})\s*$/.exec(String(s || "")); if (!m) return null; let y = +m[3]; if (y < 100) y += 2000; return +new Date(y, m[2] - 1, +m[1]); };
   MAM.isoToTs = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m ? +new Date(+m[1], m[2] - 1, +m[3]) : null; };
   MAM.longDate = s => { const t = MAM.isoToTs(s) ?? MAM.ukToTs(s); if (t == null) return ""; return new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }); };
-  /* company names as written in reports: "SPIRE HEALTHCARE GROUP PLC" -> "Spire Healthcare Group plc" */
-  MAM.tc = x => String(x || "").toLowerCase().replace(/(^|[\s(\/&.-])([a-zà-ÿ])/g, (m, a, b) => a + b.toUpperCase())
-    .replace(/\b(Spa|Sa|Plc|Ag|Se|Nv|Inc|Llc|Llp|Lp|Asa|Ab|Kgaa|Bv|Uk|Us|Usa|Gmbh|Oyj|As|A\/s|Sas|Srl|Sarl|Ltd|Pjsc|Jsc|Reit|Ii|Iii|Iv)\b/g,
-      w => ({ Spa: "SpA", Plc: "plc", Inc: "Inc", Ltd: "Ltd", Kgaa: "KGaA", Gmbh: "GmbH", Oyj: "Oyj", Sarl: "Sàrl", Srl: "Srl", Llc: "LLC", Llp: "LLP", Lp: "LP", Ii: "II", Iii: "III", Iv: "IV" }[w] || w.toUpperCase()))
-    .replace(/\bMc([a-z])/g, (m, a) => "Mc" + a.toUpperCase()).replace(/'S\b/g, "'s");
+  /* company names as written in reports: "SPIRE HEALTHCARE GROUP PLC" -> "Spire Healthcare Group plc".
+     A word is spelt as the deal reports spell it where the DataBase has learnt that (MAM.caseMap, site-wide, and each deal's
+     own spellings through MAM.nameDisp - both set by database.js from db_deal_index: TK, SFR, USI, BlackRock). Otherwise a
+     word with no vowels is an acronym and stays in capitals ("BT", "KKR"), except the abbreviations in NOVOWEL, which the
+     reports write as shown. Legal forms keep the house style below (plc, SpA, GmbH ...). */
+  const LEGAL = { Spa: "SpA", Plc: "plc", Inc: "Inc", Ltd: "Ltd", Kgaa: "KGaA", Gmbh: "GmbH", Oyj: "Oyj", Sarl: "Sàrl", Srl: "Srl", Llc: "LLC", Llp: "LLP", Lp: "LP", Ii: "II", Iii: "III", Iv: "IV" };
+  const LEGAL_U = new Set(["SPA", "SA", "SAD", "SAU", "SLU", "PLC", "AG", "SE", "NV", "INC", "LLC", "LLP", "LP", "ASA", "AB", "KGAA", "BV", "UK", "US", "USA", "GMBH", "OYJ", "AS", "SAS", "SRL", "SARL", "LTD", "PJSC", "JSC", "REIT", "II", "III", "IV"]);
+  const NOVOWEL = { MR: "Mr", MRS: "Mrs", MS: "Ms", DR: "Dr", ST: "St", JR: "Jr", SR: "Sr", RT: "Rt", SP: "Sp", BHD: "Bhd", PVT: "Pvt", KFT: "Kft", ZRT: "Zrt", PCL: "Pcl", MFG: "Mfg", HF: "Hf", HG: "Hg", VP: "Vp", LXB: "Lxb", CHR: "Chr", SPRNG: "Sprng", DNB: "DnB", GFK: "GfK", MBH: "mbH" };
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  MAM.caseMap = {}; MAM.nameDisp = {};
+  const caseWord = (t, nc) => {
+    if (t.length < 2) return t;
+    const u = t.toUpperCase();
+    if (LEGAL_U.has(u)) return t;
+    if (nc && own(nc, u)) return nc[u] || t;                        // the deal's own report ("" = plain capitalisation)
+    if (own(MAM.caseMap, u)) return MAM.caseMap[u];
+    if (/^[A-Z][a-z]{1,4}$/.test(t) && !/[aeiouy]/i.test(t)) return own(NOVOWEL, u) ? NOVOWEL[u] : u;
+    return t;
+  };
+  MAM.tc = (x, nc) => {
+    const s = String(x || "");
+    if (!nc && own(MAM.nameDisp, s.toUpperCase())) return MAM.nameDisp[s.toUpperCase()];
+    return s.toLowerCase().replace(/(^|[\s(\/&.-])([a-zà-ÿ])/g, (m, a, b) => a + b.toUpperCase())
+      .replace(/\b(Spa|Sa|Sad|Sau|Slu|Plc|Ag|Se|Nv|Inc|Llc|Llp|Lp|Asa|Ab|Kgaa|Bv|Uk|Us|Usa|Gmbh|Oyj|As|A\/s|Sas|Srl|Sarl|Ltd|Pjsc|Jsc|Reit|Ii|Iii|Iv)\b/g, w => LEGAL[w] || w.toUpperCase())
+      .replace(/\bMc([a-z])/g, (m, a) => "Mc" + a.toUpperCase()).replace(/'S\b/g, "'s")
+      .replace(/[A-Za-z0-9À-ÖØ-öø-ÿ]+/g, t => caseWord(t, nc));
+  };
   MAM.fx = (v, from, to) => { if (v == null) return null; const f = C.fxPerGbp[(from || "").toUpperCase()], t = C.fxPerGbp[to]; if (!f || !t) return null; return v / f * t; };
 
   MAM.toast = (msg, err) => { const t = $("#toast"); if (!t) return; $("#toast-t").textContent = msg; t.classList.toggle("err", !!err); t.classList.add("on"); clearTimeout(MAM.toast.h); MAM.toast.h = setTimeout(() => t.classList.remove("on"), 4200); };

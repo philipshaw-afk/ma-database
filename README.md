@@ -34,6 +34,13 @@ The card counts DIANA's pending deal reports and switches between two summaries 
   * Cross-border: the report's own Cross Border field (`pdf_cross_border` in `db_deal_index()`, which also counts a foreign seller); where a report has none, the target's and bidder's countries are compared. Public offers with offer status keep the offer-status value. The Search Form's Cross Border filter uses the same value.
   * Clicking a region, country or sector bar opens Search Results for the pending private deals there (the `pending-private` preset with `data-region` / `data-country` / `data-sector`).
 
+## Company names
+
+The database holds names in capitals; `MAM.tc()` (core.js) writes them for display: words capitalised, legal forms in house style (plc, SpA, GmbH, SA, SAU …), and:
+
+* **Spellings learnt from the reports** (once `supabase/sql/2026-10-24_name_casing.sql` is applied — not yet): `db_name_case_sweep()` reads how each deal's report text writes the words of its names (lines without small letters, i.e. headings, left out; all-small-letter uses ignored) into `db_name_case_deal`, and keeps site-wide spellings in `db_name_case` (in capitals or with a capital inside, in at least 60% of capitalised mentions; short function words such as ON, OF, DE left to each deal). `db_deal_index()` returns them as `case`, and each deal's own spellings where they differ as `nc` (MAN AG → MAN, E.ON → ON, Wm Morrison). pg_cron job `db-name-case-sweep` reads new and changed deals every 10 minutes.
+* **Words without vowels** are acronyms and stay in capitals (TK, SFR, BT, KKR), except the abbreviations the reports write otherwise (`NOVOWEL` in core.js: St, Dr, Hg, DnB, Sp, Bhd …).
+
 ## Logins and security
 
 * Supabase Auth on DIANA's project. Users sign in with email + password (or an emailed sign-in link).
@@ -67,6 +74,7 @@ supabase/functions/doc-text/          reads the documents' text for the word sea
 supabase/sql/2026-10-23_document_text_search.sql   tables, queue and search functions for the document word search
 supabase/sql/2026-10-23_customised_bid_premia.sql  dividends / splits, adjusted close and db_premia_data for the customised bid premia
 supabase/sql/2026-10-24_deal_index_cross_border.sql  db_deal_index carries the report's Cross Border field (applied 24/10/2026)
+supabase/sql/2026-10-24_name_casing.sql  company-name spellings learnt from the reports (not yet applied)
 ```
 
 ## Deal documents (how they get there)

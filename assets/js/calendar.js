@@ -111,7 +111,7 @@ const regCls=s=>/^No regulatory/.test(s)?'rg-no':/^All regulatory/.test(s)?'rg-o
 const regLab={'rg-no':'No clearance required','rg-aw':'Awaiting clearance','rg-ok':'All clearances obtained','rg-p2':'Phase 2 referral','rg-na':'Not recorded'};
 const stCls=s=>/^Unconditional/.test(s)?'st-unc':/^Completed/.test(s)?'st-comp':/^Superseded|Lapsed|Withdrawn/.test(s)?'st-sup':'st-pend';
 const stLab={'st-pend':'Pending','st-unc':'Unconditional, awaiting settlement','st-comp':'Completed','st-sup':'Superseded'};
-const tc=x=>String(x).toLowerCase().replace(/(^|[\s(\/-])([a-z])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\b(Spa|Sa|Plc|Ag|Se|Nv|Inc|Llc|Llp|Lp|Asa|Ab|Kgaa|Bv|Uk|Us)\b/g,w=>({Spa:'SpA',Plc:'plc',Inc:'Inc',Kgaa:'KGaA'}[w]||w.toUpperCase()));
+const tc=x=>window.MAM.tc(x);   // company names: the site's capitalisation (core.js), with the spellings learnt from the reports
 const money=v=>v==null||!isFinite(v)?'—':v>=1000?'£'+(v/1000).toFixed(1)+'bn':v>=10?'£'+Math.round(v)+'m':'£'+(+v).toFixed(1)+'m';
 const stack=(counts,labels,order)=>{const tot=order.reduce((s,k)=>s+(counts[k]||0),0)||1;
   return '<div class="sbar" role="img" aria-label="'+esc(order.filter(k=>counts[k]).map(k=>labels[k]+' '+counts[k]).join(', '))+'">'+order.filter(k=>counts[k]).map(k=>'<i class="'+k+'" style="width:'+(counts[k]/tot*100).toFixed(2)+'%" data-tip="'+esc(labels[k]+': '+counts[k])+'" title="'+esc(labels[k]+': '+counts[k])+'"></i>').join('')+'</div>'+

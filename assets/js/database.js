@@ -67,6 +67,12 @@
     return r;
   }
   MAM.buildDeals = function (idx) {
+    /* name spellings learnt from the reports (see MAM.tc): site-wide, then each deal's own where they differ */
+    MAM.caseMap = idx.case || {}; MAM.nameDisp = {};
+    (idx.deals || []).forEach(x => {
+      if (!x.nc) return; const f = x.f || {};
+      [x.t, x.b, x.s, f["Ultimate Bidder"], f["pdf_bidding_subsidiary"], f["Ultimate Divestor name"]].forEach(n => { if (n) MAM.nameDisp[String(n).toUpperCase()] = MAM.tc(n, x.nc); });
+    });
     const st = idx.status || {};
     const out = [], by = {};
     (idx.deals || []).forEach(x => { const r = fromIndex(x, st[x.n]); out.push(r); by[r.deal_no] = r; });
